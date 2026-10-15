@@ -13,11 +13,8 @@ async function aiReadinessHandler(
   }
 
   const refresh = request.query.get("refresh") === "true";
-  const readiness = await checkAzureAIReadiness({ bypassCache: refresh });
-  context.log(
-    `AI readiness correlationId=${readiness.correlationId} status=${readiness.status}` +
-      `${readiness.code ? ` code=${readiness.code}` : ""}`,
-  );
+  const readiness = await checkAzureAIReadiness({ probe: refresh });
+  if (readiness.status === "unavailable") context.warn(`AI readiness correlationId=${readiness.correlationId} code=${readiness.code}`);
 
   return {
     status: 200,

@@ -16,7 +16,7 @@
  */
 import { TableClient, odata, type TableEntity } from "@azure/data-tables";
 import { randomBytes } from "crypto";
-import { getCredential } from "./iq-credential";
+import { getTableClient } from "./storage-clients";
 import type { QuestionnaireQuestion, QuestionnaireResponse } from "./questionnaire-validation";
 
 // ── Contract (mirrors src/lib/questionnaire-types.ts) ────────────────────────
@@ -69,37 +69,6 @@ export function newToken(): string {
 }
 
 // ── Client resolution ────────────────────────────────────────────────────────
-function looksLikeConnectionString(value: string | undefined): boolean {
-  if (!value) return false;
-  return /AccountKey=|UseDevelopmentStorage=true|SharedAccessSignature=/i.test(value);
-}
-
-function getTableClient(tableName: string): TableClient {
-  const explicitConn = process.env.AZURE_STORAGE_CONNECTION_STRING?.trim();
-  const webJobsConn = process.env.AzureWebJobsStorage?.trim();
-  const conn = explicitConn || (looksLikeConnectionString(webJobsConn) ? webJobsConn : undefined);
-
-  if (conn) {
-    const insecure = /UseDevelopmentStorage=true|127\.0\.0\.1|localhost|http:\/\//i.test(conn);
-    return TableClient.fromConnectionString(conn, tableName, { allowInsecureConnection: insecure });
-  }
-
-  const account =
-    process.env.AZURE_STORAGE_ACCOUNT_NAME?.trim() ||
-    process.env.AzureWebJobsStorage__accountName?.trim();
-  if (account) {
-    const credential = getCredential();
-    if (!credential) {
-      throw new Error("Azure credential not available for Table Storage (managed identity not configured).");
-    }
-    return new TableClient(`https://${account}.table.core.windows.net`, tableName, credential);
-  }
-
-  throw new Error(
-    "Storage not configured: set AZURE_STORAGE_CONNECTION_STRING (local) or AZURE_STORAGE_ACCOUNT_NAME (managed identity).",
-  );
-}
-
 async function ensureTable(client: TableClient): Promise<void> {
   try {
     await client.createTable();

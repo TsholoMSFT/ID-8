@@ -159,6 +159,7 @@ export async function extractTextFromAttachments(
           if (cfg.enableOcr) {
             try {
               const ocrText = await tryOcr(file, cfg.ocrEndpoint)
+              fileWarnings.push('OCR processes only the first 10 pages under the server cost policy. Split longer scans into smaller files if needed.')
               results.push({
                 fileName: file.name,
                 mimeType: file.type,

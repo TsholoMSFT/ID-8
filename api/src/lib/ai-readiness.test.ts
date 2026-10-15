@@ -16,6 +16,7 @@ test("reports ready when the selected deployment accepts a minimal request", asy
     env: keyEnvironment,
     correlationId: "ready-1",
     bypassCache: true,
+    probe: true,
     getAuthHeaders: async () => ({ "api-key": "test-key" }),
     fetchImpl: async (input) => {
       requestUrl = String(input);
@@ -37,6 +38,7 @@ test("classifies a disabled subscription without treating it as retryable", asyn
     env: keyEnvironment,
     correlationId: "disabled-1",
     bypassCache: true,
+    probe: true,
     getAuthHeaders: async () => ({ "api-key": "test-key" }),
     fetchImpl: async () => new Response(JSON.stringify({
       error: { message: "ReadOnlyDisabledSubscription" },
@@ -62,6 +64,7 @@ test("reports explicit authentication failure before calling the provider", asyn
     },
     correlationId: "auth-1",
     bypassCache: true,
+    probe: true,
     getAuthHeaders: async () => null,
     fetchImpl: async () => {
       called = true;
@@ -72,4 +75,15 @@ test("reports explicit authentication failure before calling the provider", asyn
   assert.equal(called, false);
   assert.equal(result.code, "AI_AUTH_FAILED");
   assert.equal(result.retryable, false);
+});
+
+test("automatic readiness is configuration-only and never authenticates or invokes inference", async () => {
+  let calls = 0;
+  const result = await checkAzureAIReadiness({
+    env: keyEnvironment,
+    getAuthHeaders: async () => { calls++; return {}; },
+    fetchImpl: async () => { calls++; return new Response(); },
+  });
+  assert.equal(result.status, "configured");
+  assert.equal(calls, 0);
 });

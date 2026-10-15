@@ -460,10 +460,14 @@ export interface UseCaseRunCost {
     activeUsers?: number
     monthlyTransactions?: number
     region?: string
+    searchBackend?: 'azure-ai-search' | 'blob-hybrid'
+    sharedPlatformId?: string
   }
   lastEstimatedAt: number
   /** Pricing-table version used. */
   pricingVersion?: string
+  /** Fixed costs may be shared only when the user explicitly selects the same platform group. */
+  sharedPlatformCosts?: Array<{ key: string; monthlyUSD: number }>
 }
 
 /** AI-suggested SKU swap to reduce run cost (Phase 8 — cost optimization). */

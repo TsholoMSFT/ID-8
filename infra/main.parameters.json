@@ -2,35 +2,10 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "environmentName": {
-      "value": "${AZURE_ENV_NAME}"
-    },
-    "location": {
-      "value": "${AZURE_LOCATION=swedencentral}"
-    },
-    "keyVaultName": {
-      "value": "${KEY_VAULT_NAME=karabo-keyvault}"
-    },
-    "allowedOrigin": {
-      "value": "${ALLOWED_ORIGIN=*}"
-    },
-    "embeddingDeployment": {
-      "value": "${AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small}"
-    },
-    "aiAuthMode": {
-      "value": "${AZURE_OPENAI_AUTH_TYPE=key}"
-    },
-    "aiServicesResourceGroupName": {
-      "value": "${AZURE_AI_SERVICES_RESOURCE_GROUP=rg-tsetati}"
-    },
-    "aiServicesAccountName": {
-      "value": "${AZURE_AI_SERVICES_ACCOUNT_NAME=ai-tsetati0596ai632839372344}"
-    },
-    "searchEndpoint": {
-      "value": "${AZURE_SEARCH_ENDPOINT=https://id8-search.search.windows.net}"
-    },
-    "searchIndex": {
-      "value": "${AZURE_SEARCH_INDEX=karabo-knowledge-v2}"
-    }
+    "staticSiteName": { "value": "karabo-app" },
+    "location": { "value": "eastus2" },
+    "storageAccountName": { "value": "kaaborsstorage" },
+    "repositoryUrl": { "value": "https://github.com/TsholoMSFT/KARABO" },
+    "branch": { "value": "main" }
   }
 }

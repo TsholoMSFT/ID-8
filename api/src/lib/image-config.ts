@@ -27,15 +27,21 @@ export function buildImageGenerationPayload(
   if (options.style !== undefined) {
     throw new Error('Image style is not supported by GPT-Image-1-mini')
   }
+  if (options.quality !== undefined && options.quality !== 'low') {
+    throw new Error('Only low-quality images are enabled by the server cost policy')
+  }
   if (options.n !== undefined && (typeof options.n !== 'number' || !Number.isInteger(options.n))) {
     throw new Error('Image count must be an integer')
+  }
+  if (options.n !== undefined && options.n !== 1) {
+    throw new Error('Only one image per request is enabled by the server cost policy')
   }
 
   return {
     prompt,
     size: (options.size as ImageSize | undefined) || '1024x1024',
-    quality: (options.quality as ImageQuality | undefined) || 'low',
+    quality: 'low',
     output_format: 'png',
-    n: Math.min(Math.max((options.n as number | undefined) || 1, 1), 4),
+    n: 1,
   }
 }

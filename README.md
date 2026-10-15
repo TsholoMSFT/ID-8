@@ -65,14 +65,14 @@ Navigate to `http://localhost:3000`
 
 ## 🤖 AI-Powered Features
 
-This application leverages **OpenAI's GPT-4o and GPT-4o-mini** models to provide intelligent assistance throughout the assessment workflow:
+The application uses task-routed models through a server-side Azure Functions proxy. Production currently uses GPT-5.4-mini for analysis and executive content, with separately configured inexpensive extraction/formatting deployments. Model aliases are not prices; provider usage is recorded against the actual deployment.
 
 - **🎯 Real-Time Discovery Insights**: AI analyzes voice responses during Live Discovery and suggests opportunities
 - **💡 Smart Question Assistance**: Get thoughtful prompts and examples for discovery questions
 - **🚀 Automatic Use Case Generation**: AI generates 5-8 relevant use cases from your discovery session
 - **📄 Executive Summaries**: Professional AI-generated summaries ready for leadership presentations
 
-**See [AI-GUIDE.md](./AI-GUIDE.md) for a quick overview or [AI-FEATURES.md](./AI-FEATURES.md) for complete documentation.**
+**See [AI-GUIDE.md](./docs/guides/AI-GUIDE.md) for configuration, cost controls, and knowledge retrieval, or [AI-FEATURES.md](./docs/guides/AI-FEATURES.md) for feature documentation.**
 
 ## Key Features
 
@@ -122,7 +122,8 @@ Here's how I designed the workflow:
 - **Frontend**: React 19, TypeScript, Tailwind CSS v4
 - **UI Components**: shadcn/ui v4, Radix UI primitives
 - **State Management**: React hooks with localStorage for persistence
-- **AI Integration**: OpenAI GPT-4o and GPT-4o-mini via direct API calls
+- **AI Integration**: Task-routed models via a server-side managed Functions API
+- **Knowledge retrieval**: Private Blob-backed BM25/vector hybrid search; no dedicated Azure AI Search service
 - **Speech Recognition**: Web Speech API (Chrome, Edge, Safari)
 - **Icons**: Phosphor Icons
 - **Animations**: Framer Motion
@@ -144,7 +145,8 @@ Here's how I designed the workflow:
 
 - All data stored locally in your browser using localStorage
 - AI features process only the information you explicitly provide via OpenAI API
-- No external databases or user authentication required
+- Microsoft Entra sign-in is required for consultant and AI features; customer questionnaire links remain public and token-scoped
+- Private Azure Table Storage holds questionnaires and durable per-user/application quotas
 - Session data persists between browser sessions
 - **Your OpenAI API key is stored in environment variables and never exposed to the browser**
 
@@ -188,7 +190,22 @@ The built files will be in the `dist/` directory, ready to deploy to any static 
 - AWS S3 + CloudFront
 - Azure Static Web Apps
 
-**Important**: Remember to set your `VITE_OPENAI_API_KEY` environment variable in your hosting platform's settings.
+**Production deployment** uses the existing `karabo-app` Free Static Web App and its managed API. The canonical GitHub workflow deploys the frontend and `api` together. The separate Flex Functions/azd deployment path has been retired.
+
+```powershell
+npm run typecheck
+npm test
+npm --prefix api test
+npm --prefix api run build
+npm run build
+# With Azure Static Web Apps CLI available; use the existing site's token via
+# SWA_CLI_DEPLOYMENT_TOKEN, never a literal token in a command or source file.
+swa deploy karabo --api-language node --api-version 22 --env production
+```
+
+The [managed infrastructure template](./infra/main.bicep) describes only the Free site and references existing storage. After `az login`, `npm --prefix api run configure:managed` merges cost-control settings into the existing site without displaying keys; `npm --prefix api run knowledge:migrate` backs up and migrates the existing Search corpus. Both scripts target the configured existing subscription/resource group and require explicit operator authorization. For a new corpus, use `knowledge:seed` (it refuses to replace an index without `--replace`).
+
+**Never place service keys in `VITE_*` variables.** Managed Functions do not support managed identity or Key Vault references; server-side model and storage keys must remain in the Static Web App's encrypted API settings. See [AI-GUIDE.md](./docs/guides/AI-GUIDE.md).
 
 ## 👤 Author
 

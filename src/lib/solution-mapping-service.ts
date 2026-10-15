@@ -5,7 +5,7 @@ import type {
   UseCaseAgenticOpportunity,
   UseCaseMicrosoftSolution,
 } from './types'
-import { AIServiceError, getAIReadiness, type AIErrorCode } from './openai-service'
+import { AIServiceError, type AIErrorCode } from './openai-service'
 
 const API_ENDPOINT = import.meta.env.VITE_API_ENDPOINT || '/api'
 
@@ -59,16 +59,6 @@ interface MappingErrorResponse {
 export async function mapRankedUseCase(
   input: RankedUseCaseMappingRequest,
 ): Promise<RankedUseCaseMappingResponse> {
-  const readiness = await getAIReadiness()
-  if (readiness.status !== 'ready') {
-    throw new AIServiceError(
-      readiness.message || 'AI provider is unavailable for solution mapping.',
-      readiness.code || 'PROVIDER_ERROR',
-      readiness.retryable ?? false,
-      readiness.correlationId,
-    )
-  }
-
   const response = await fetch(`${API_ENDPOINT}/solution-mapping`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

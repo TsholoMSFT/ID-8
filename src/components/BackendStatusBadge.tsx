@@ -1,7 +1,7 @@
 /**
  * BackendStatusBadge
  * ----------------------------------------------------------------------------
- * Small live badge that polls /api/health every 60s. Surfaces:
+ * Polls configuration without inference while the page is visible.
  *   • online   — green dot
  *   • degraded — amber dot (HTTP 200 but body reports issues)
  *   • offline  — red dot, fires a one-shot toast on transition online→offline
@@ -17,7 +17,7 @@ import { getAIReadiness, type AIReadiness } from '@/lib/openai-service'
 
 type Status = 'unknown' | 'online' | 'degraded' | 'offline'
 
-const POLL_MS = 60_000
+const POLL_MS = 15 * 60_000
 
 function apiBase(): string {
   return (window as any).__API_BASE__ || ''
@@ -29,7 +29,7 @@ export function BackendStatusBadge() {
   const [lastChecked, setLastChecked] = useState<Date | null>(null)
   const prev = useRef<Status>('unknown')
 
-  const check = async () => {
+  const check = async (testAI = false) => {
     try {
       const ctrl = new AbortController()
       const t = setTimeout(() => ctrl.abort(), 8000)
@@ -44,9 +44,9 @@ export function BackendStatusBadge() {
         const degraded = body?.status === 'degraded' || (Array.isArray(body?.issues) && body.issues.length > 0)
         setStatus(degraded ? 'degraded' : ok ? 'online' : 'online')
         try {
-          const readiness = await getAIReadiness()
+          const readiness = await getAIReadiness(testAI)
           setAIReadiness(readiness)
-          if (readiness.status !== 'ready') setStatus('degraded')
+          if (readiness.status === 'unavailable') setStatus('degraded')
         } catch {
           setAIReadiness(null)
           setStatus('degraded')
@@ -62,8 +62,13 @@ export function BackendStatusBadge() {
 
   useEffect(() => {
     void check()
-    const id = setInterval(() => void check(), POLL_MS)
-    return () => clearInterval(id)
+    const poll = () => { if (!document.hidden) void check() }
+    const id = setInterval(poll, POLL_MS)
+    document.addEventListener('visibilitychange', poll)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', poll)
+    }
   }, [])
 
   useEffect(() => {
@@ -93,8 +98,8 @@ export function BackendStatusBadge() {
         <TooltipTrigger asChild>
           <button
             type="button"
-            onClick={() => void check()}
-            aria-label={`Backend status: ${label}. Click to recheck.`}
+            onClick={() => void check(true)}
+            aria-label={`Backend status: ${label}. Click to test the AI connection.`}
             className="inline-flex"
           >
             <Badge variant="outline" className="gap-1.5 cursor-pointer text-[10px] py-0 h-5">
@@ -107,11 +112,12 @@ export function BackendStatusBadge() {
           <div className="text-[11px] space-y-0.5">
             <div>Backend: <strong>{label}</strong></div>
             {status !== 'offline' && (
-              <div>AI: <strong>{aiReadiness?.status === 'ready' ? 'Ready' : 'Unavailable'}</strong></div>
+              <div>AI: <strong>{aiReadiness?.status === 'ready' ? 'Test passed' : aiReadiness?.status === 'configured' ? 'Configured (not tested)' : 'Unavailable'}</strong></div>
             )}
             {aiReadiness?.code && <div className="text-muted-foreground">{aiReadiness.code}</div>}
             {lastChecked && <div>Last check: {lastChecked.toLocaleTimeString()}</div>}
-            <div className="text-muted-foreground">Polls every 60s · click to recheck</div>
+            <div className="text-muted-foreground">Checks configuration every 15 minutes while visible</div>
+            <div className="text-muted-foreground">Click to run a small, metered AI connection test</div>
           </div>
         </TooltipContent>
       </Tooltip>

@@ -2,6 +2,22 @@
   "rules": [
     {
       "enabled": true,
+      "name": "expire-ai-response-cache",
+      "type": "Lifecycle",
+      "definition": {
+        "actions": {
+          "baseBlob": {
+            "delete": { "daysAfterModificationGreaterThan": 1 }
+          }
+        },
+        "filters": {
+          "blobTypes": ["blockBlob"],
+          "prefixMatch": ["ai-response-cache/"]
+        }
+      }
+    },
+    {
+      "enabled": true,
       "name": "expire-feed-snapshots",
       "type": "Lifecycle",
       "definition": {

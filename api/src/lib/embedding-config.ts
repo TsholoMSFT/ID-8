@@ -5,15 +5,16 @@ export function getEmbeddingDeployment(): string {
   return process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT?.trim() || DEFAULT_EMBEDDING_DEPLOYMENT
 }
 
-export function isValidEmbeddingVector(vector: number[] | undefined): vector is number[] {
+export function isValidEmbeddingVector(vector: unknown): vector is number[] {
   return Array.isArray(vector) && vector.length === EMBEDDING_DIMENSIONS
+    && vector.every((value) => typeof value === 'number' && Number.isFinite(value))
 }
 
-export function validateEmbeddingVectors(vectors: number[][]): void {
+export function validateEmbeddingVectors(vectors: unknown[]): void {
   for (const vector of vectors) {
-    if (vector.length !== EMBEDDING_DIMENSIONS) {
+    if (!isValidEmbeddingVector(vector)) {
       throw new Error(
-        `Embedding dimension mismatch: expected ${EMBEDDING_DIMENSIONS}, received ${vector.length}`,
+        `Embedding vector invalid: expected ${EMBEDDING_DIMENSIONS}, received ${Array.isArray(vector) ? vector.length : 'non-array'} (all values must be finite numbers)`,
       )
     }
   }

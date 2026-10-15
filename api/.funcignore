@@ -1,0 +1,8 @@
+local.settings.json
+*.log
+scripts/
+src/
+tsconfig*.json
+dist/**/*.test.js
+dist/**/*.test.js.map
+node_modules/.cache/

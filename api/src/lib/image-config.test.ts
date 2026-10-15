@@ -21,14 +21,10 @@ test('uses a low-cost GPT Image request by default', () => {
   })
 })
 
-test('keeps requests within GPT Image supported options', () => {
-  assert.deepEqual(buildImageGenerationPayload('test', { size: '1536x1024', quality: 'medium', n: 20 }), {
-    prompt: 'test',
-    size: '1536x1024',
-    quality: 'medium',
-    output_format: 'png',
-    n: 4,
-  })
+test('enforces the server image budget rather than trusting client options', () => {
+  assert.throws(() => buildImageGenerationPayload('test', { quality: 'medium' }), /Only low-quality/)
+  assert.throws(() => buildImageGenerationPayload('test', { quality: 'high' }), /Only low-quality/)
+  assert.throws(() => buildImageGenerationPayload('test', { n: 4 }), /Only one image/)
 })
 
 test('rejects DALL-E-only and invalid runtime options', () => {

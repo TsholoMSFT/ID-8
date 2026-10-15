@@ -1,4 +1,4 @@
-import { AIServiceError, getAIReadiness, type AIErrorCode } from './openai-service'
+import { AIServiceError, type AIErrorCode } from './openai-service'
 
 const API_ENDPOINT = import.meta.env.VITE_API_ENDPOINT || '/api'
 
@@ -64,16 +64,6 @@ interface CandidateErrorResponse {
 export async function generateUseCaseCandidates(
   input: UseCaseCandidateRequest,
 ): Promise<UseCaseCandidateResponse> {
-  const readiness = await getAIReadiness()
-  if (readiness.status !== 'ready') {
-    throw new AIServiceError(
-      readiness.message || 'AI provider is unavailable.',
-      readiness.code || 'PROVIDER_ERROR',
-      readiness.retryable ?? false,
-      readiness.correlationId,
-    )
-  }
-
   const response = await fetch(`${API_ENDPOINT}/use-case-candidates`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

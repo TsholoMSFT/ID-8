@@ -40,13 +40,17 @@ The application uses task-specific model routing and bounded output budgets:
 
 - **Development**: Foundry Local first when explicitly enabled, then Azure OpenAI if the local service is unavailable or returns an invalid response.
 - **Production**: Azure OpenAI only, followed by the typed deterministic fallback owned by each feature.
-- **Embeddings**: `text-embedding-3-small` with 1536 dimensions.
+- **Strict JSON**: GPT-5-nano for extraction/formatting. Explicit Phi JSON requests are routed server-side to nano because the existing Phi deployment times out in JSON mode; plain-text Phi requests are unchanged.
+- **Embeddings**: 1536 dimensions; production reuses the existing `text-embedding-3-large` deployment with `dimensions: 1536`. The local default remains `text-embedding-3-small`.
 - **Images**: `gpt-image-1-mini` with low-cost quality defaults.
 
 The API exposes separate liveness and readiness checks:
 
 - `/api/health` confirms that the Functions host is serving requests.
-- `/api/ai-readiness` sends a minimal cached request to the configured model deployment and classifies configuration, authentication, disabled-subscription, deployment, throttling, and timeout failures.
+- `/api/ai-readiness` checks configuration only, with **zero inference calls**. `configured` means settings are present, not that inference was tested.
+- `/api/ai-readiness?refresh=true` is an authenticated, explicitly metered connection test. Its result is cached for 15 minutes; normal generation never performs this preflight.
+
+The status badge checks every 15 minutes while the page is visible. Clicking it explicitly tests inference. Chat requests have a 35-second provider timeout and a 40-second browser timeout, below the managed API's 45-second limit; ambiguous failures are never automatically replayed.
 
 Use-case candidates and ranked solution mappings are validated against bounded schemas. Permanent provider failures are not retried; the application automatically switches candidate generation to clearly labelled industry templates.
 
@@ -54,10 +58,56 @@ Use-case candidates and ranked solution mappings are validated against bounded s
 
 Set `AZURE_OPENAI_AUTH_TYPE` explicitly in every environment:
 
-- `key` (default deployment mode): uses `AZURE_OPENAI_API_KEY`, normally supplied through a Key Vault reference.
-- `entra-id`: uses the developer identity locally and the Function App managed identity in Azure. The identity requires **Cognitive Services OpenAI User** on the existing AI Services/OpenAI account.
+- `key` (managed production mode): uses `AZURE_OPENAI_API_KEY` in the Static Web App's encrypted API settings. Managed Functions do not support managed identity or Key Vault references. Keys are never returned to the browser.
+- `entra-id`: supported for local development or a separately managed host. The developer identity requires **Cognitive Services OpenAI User** on the existing AI Services/OpenAI account.
 
 The two modes are strict. An Entra failure does not silently cross over to a configured key.
+
+User authentication is separate from model authentication: the application requires the platform's Microsoft Entra (`aad`) identity, checks it again in a shared HTTP invocation policy, and rejects other identity providers. The Free plan uses Static Web Apps' preconfigured Entra provider. This requires an Entra account, not membership of a particular tenant; tenant-specific/custom registration would require an additional access design or Standard plan.
+
+Public routes are limited to liveness/configuration, scheduled feed reads, questionnaire configuration by unguessable link token, and questionnaire submission. Creating questionnaires and reading submissions also require sign-in; the existing admin token is still required for submissions.
+
+For direct local Functions development only, set `KARABO_ALLOW_ANONYMOUS_LOCAL=true` in ignored local settings and configure Azurite or a development Storage account. The bypass is ignored in Azure/production. The Vite development UI skips the production sign-in gate; production builds do not.
+
+## Server cost controls
+
+- Atomic Azure Table Storage transactions reserve both per-user and application-wide quotas before billable work. Storage failures fail closed.
+- Defaults: 200 requests/user/day, 2,000/application/day; 20/user/minute, 100/application/minute.
+- Conservative token reservations: 200,000/user/day and 2,000,000/application/day, counting input UTF-8 bytes plus the maximum output budget. Failed/uncertain requests retain their reservation; these are safety ceilings, not estimates of billed dollars.
+- Images: one low-quality image/request, three/user/day and 15/application/day.
+- OCR: first ten pages/request; 50 reserved pages/user/day and 200/application/day. Longer scanned files must be split explicitly.
+- Agent runs: five/user/day and 20/application/day; provider run caps are 8,000 prompt and 2,000 completion tokens.
+- Combined chat/system input is capped at 48,000 UTF-8 bytes. Embedding batches allow 1-16 inputs and at most 32,000 combined bytes.
+- Output ceilings are task-specific; executive content defaults to the mini route. `AI_ALLOW_PREMIUM=true` is required to authorize the premium alias.
+- Successful completions are cached privately per signed-in user for 15 minutes in Blob Storage. Concurrent requests share work; cross-instance leases prevent duplicate paid requests. Cached responses report zero new tokens.
+- Application Insights samples successful traffic and suppresses routine liveness/configuration results. Retained monitoring history is not deleted.
+
+Quota settings use `AI_*` and `AI_USER_*` prefixes; see `quota-store.ts` and `configure-managed-api.ts` for the complete names. The browser displays actual provider tokens/deployment, not character-based dollar guesses. Azure budget alerts are advisory, not hard spending limits.
+
+## Blob-backed knowledge retrieval
+
+`POST /api/search-knowledge` preserves `{ query, top?, category? }` and returns `{ items, count, vector, provider, message? }`. The provider is `blob-hybrid`.
+
+The existing private Storage account holds `knowledge-index/karabo-knowledge.json`. Each warm managed Function caches the validated index for five minutes and revalidates its ETag. Ranking combines BM25 keyword scores and cosine vector similarity with reciprocal rank fusion. Query embeddings are cached in memory for one hour. No dedicated search compute is provisioned.
+
+This is suitable for KARABO's 56-document, low-traffic reference corpus, **not** an unlimited enterprise search replacement:
+
+| Option | Suitable use | Trade-off |
+| --- | --- | --- |
+| Existing Blob + managed Functions (selected) | Small, infrequent knowledge retrieval | 1,000 documents / 32 MiB guardrails, in-memory linear vector scan; no managed semantic ranker |
+| SQLite FTS/vector extension | Local or single-host applications | Persistent writable database and native-extension packaging are awkward in managed Functions |
+| PostgreSQL + pgvector | A larger corpus when PostgreSQL already exists | A new standalone database adds baseline cost and operations |
+| Dedicated Azure AI Search | Large corpus, high QPS, managed indexing/ranking and enterprise features | Fixed capacity costs even when idle |
+
+When embeddings are unavailable, the API logs the reason and explicitly reports keyword-only results. Missing or corrupt indexes return an error, not an empty success. Only public reference material belongs in the shared index; customer-specific corpora need tenant-scoped storage and authorization.
+
+The migration script exports every KARABO-owned source index to non-expiring `knowledge-backups/` blobs, verifies document IDs/content/metadata, regenerates non-retrievable source vectors once, and verifies the destination checksum. It does not delete Search. Preserve the backup and validate authenticated retrieval before deleting the source service.
+
+After `az login`, `npm --prefix api run knowledge:verify` checks real Blob/vector retrieval, cache round trips and durable quota boundaries. `npm --prefix api run verify:managed` invokes the protected handlers locally with test platform identities against existing Azure dependencies and verifies the deployed gateway's anonymous rejections and public questionnaire round trip. It creates and deletes only synthetic questionnaire/submission and verification-user quota rows; it never sends fake identity headers to the live gateway. This is an operator-authorized integration check, not a completed end-to-end Entra browser login.
+
+`ai-response-cache/` expires after one day. Knowledge indexes, migration backups, questionnaires and quota rows are not subject to the 45-day feed-snapshot expiration rule. Quota counters use fixed global/per-user rows rather than creating a new row every minute.
+
+The run-cost estimator is for hypothetical customer workloads, not KARABO's Azure bill. It no longer invents $25/$75 monthly hosting fees. Users can compare Blob hybrid retrieval, and fixed Search capacity is counted once only when they explicitly assign workloads to the same platform group. Old saved estimates remain unchanged until re-saved.
 
 ## Foundry Local Development Setup
 
@@ -82,7 +132,7 @@ Local requests stay on-device. If local inference times out, fails, or produces 
 ## Privacy & Data
 
 - AI only sees information you explicitly provide in the discovery process
-- All AI-generated content is stored locally in your browser
+- Generated content is stored locally in your browser and, for 15 minutes, in a private per-user server response cache (cache blobs expire after one day)
 - No personal authentication data is sent to AI services
 - You maintain full control over all generated content
 

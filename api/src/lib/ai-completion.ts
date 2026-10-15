@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { getOutputTokenLimit, type AITask } from "./ai-cost-controls";
+import { getOutputTokenLimit, selectCompletionModel, validateAIInput, type AITask } from "./ai-cost-controls";
 import {
   AIProviderError,
   classifyAIResponseError,
@@ -9,9 +9,11 @@ import {
 } from "./ai-provider";
 import { tryFoundryLocalChat } from "./foundry-local-client";
 import { getAoaiAuthHeaders } from "./iq-credential";
+import { reserveAIUsage } from "./request-policy";
+import { cachedCompletion } from "./completion-cache";
 
 const GPT5_OR_O_SERIES_RE = /(^|[^a-z])(gpt-?5|o[134])([^a-z]|$)/i;
-const PROVIDER_TIMEOUT_MS = 60_000;
+const PROVIDER_TIMEOUT_MS = 35_000;
 
 export interface AICompletionRequest {
   prompt: string;
@@ -21,6 +23,7 @@ export interface AICompletionRequest {
   systemPrompt?: string;
   cloudEnvironment?: AICloudEnvironment;
   correlationId?: string;
+  timeoutMs?: number;
 }
 
 export interface AICompletionResult {
@@ -31,6 +34,7 @@ export interface AICompletionResult {
   deployment?: string;
   correlationId: string;
   usage?: unknown;
+  cached?: boolean;
 }
 
 export interface AICompletionLogger {
@@ -54,6 +58,12 @@ export async function completeAI(
   } = request;
 
   try {
+    validateAIInput(prompt, systemPrompt);
+  } catch (error) {
+    throw new AIProviderError("INVALID_REQUEST", error instanceof Error ? error.message : "Invalid AI input.", false, 400);
+  }
+
+  try {
     const localResponse = await tryFoundryLocalChat({ prompt, task, expectJson, systemPrompt });
     if (localResponse) {
       logger?.log(`AI correlationId=${correlationId} provider=foundry-local model=${localResponse.model} task=${task}`);
@@ -64,7 +74,11 @@ export async function completeAI(
     logger?.warn(`Foundry Local unavailable; falling back to Azure OpenAI: ${message}`);
   }
 
-  const config = resolveAIProviderConfig(model, cloudEnvironment);
+  const selectedModel = selectCompletionModel(model, expectJson, process.env.AI_ALLOW_PREMIUM === "true");
+  const config = resolveAIProviderConfig(selectedModel, cloudEnvironment);
+  const outputTokenLimit = getOutputTokenLimit(task);
+  const cacheKey = JSON.stringify({ endpoint: config.endpoint, deployment: config.deployment, version: config.apiVersion, task, prompt, systemPrompt, expectJson, outputTokenLimit });
+  return cachedCompletion(cacheKey, async () => {
   const authHeaders = await getAoaiAuthHeaders(config.apiKey, config.authMode);
   if (!authHeaders) {
     throw new AIProviderError(
@@ -81,7 +95,7 @@ export async function completeAI(
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
   messages.push({ role: "user", content: prompt });
 
-  const outputTokenLimit = getOutputTokenLimit(task);
+  await reserveAIUsage({ tokens: Buffer.byteLength(prompt + (systemPrompt || ""), "utf8") + outputTokenLimit });
   const requestBody: Record<string, unknown> = { messages };
   if (GPT5_OR_O_SERIES_RE.test(config.deployment)) {
     requestBody.max_completion_tokens = outputTokenLimit;
@@ -94,7 +108,7 @@ export async function completeAI(
   logger?.log(`AI correlationId=${correlationId} auth=${config.authMode} model=${model} deployment=${config.deployment} cloud=${config.cloud} task=${task} maxOutputTokens=${outputTokenLimit}`);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), Math.min(request.timeoutMs ?? PROVIDER_TIMEOUT_MS, PROVIDER_TIMEOUT_MS));
   let response: Response;
   try {
     response = await fetchImpl(
@@ -130,6 +144,7 @@ export async function completeAI(
     throw new AIProviderError("INVALID_MODEL_OUTPUT", "AI provider returned no content.", false, 502);
   }
 
+  logger?.log(`AI usage correlationId=${correlationId} deployment=${config.deployment} usage=${JSON.stringify(data.usage || {})}`);
   return {
     content,
     model: data.model || config.deployment,
@@ -139,4 +154,5 @@ export async function completeAI(
     usage: data.usage,
     correlationId,
   };
+  }, logger);
 }

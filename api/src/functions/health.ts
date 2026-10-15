@@ -23,8 +23,6 @@ async function healthHandler(req: HttpRequest, context: InvocationContext): Prom
   const hasDocIntelKey = !!process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY?.trim();
   const foundryLocal = getFoundryLocalStatus();
 
-  context.log("Health check requested");
-
   return {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },

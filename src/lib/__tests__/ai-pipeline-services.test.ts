@@ -65,23 +65,23 @@ describe('staged AI pipeline clients', () => {
     vi.unstubAllGlobals()
   })
 
-  it('does not call candidate generation when readiness reports a permanent failure', async () => {
-    mocks.getAIReadiness.mockResolvedValue({
-      ...ready,
-      status: 'unavailable',
+  it('reports the real generation failure without a billable readiness preflight', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: 'Subscription is disabled.',
       code: 'SUBSCRIPTION_DISABLED',
       retryable: false,
-      message: 'Subscription is disabled.',
-    })
-    const fetchMock = vi.fn()
+      correlationId: 'candidate-disabled',
+    }), { status: 403, headers: { 'Content-Type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(generateUseCaseCandidates(candidateRequest)).rejects.toMatchObject({
       code: 'SUBSCRIPTION_DISABLED',
       retryable: false,
-      correlationId: 'ready-1',
+      correlationId: 'candidate-disabled',
     })
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toContain('/use-case-candidates')
+    expect(mocks.getAIReadiness).not.toHaveBeenCalled()
   })
 
   it('returns candidate provider provenance from the typed endpoint', async () => {
@@ -173,5 +173,7 @@ describe('staged AI pipeline clients', () => {
     expect(result.mapping.microsoftSolutions[0].services).toContain('azure-ai-foundry')
     expect(result.generation.correlationId).toBe('mapping-1')
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ rank: 1 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(mocks.getAIReadiness).not.toHaveBeenCalled()
   })
 })

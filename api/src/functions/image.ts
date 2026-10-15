@@ -82,6 +82,7 @@ async function imageHandler(req: HttpRequest, context: InvocationContext): Promi
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(35_000),
     })
     if (!r.ok) {
       const text = await r.text()

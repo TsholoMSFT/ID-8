@@ -97,7 +97,7 @@ async function ocrHandler(req: HttpRequest, context: InvocationContext): Promise
 
     const bytes = Buffer.from(await file.arrayBuffer())
 
-    const analyzeUrl = `${DOC_INTELLIGENCE_ENDPOINT}/documentintelligence/documentModels/prebuilt-read:analyze?api-version=${API_VERSION}`
+    const analyzeUrl = `${DOC_INTELLIGENCE_ENDPOINT}/documentintelligence/documentModels/prebuilt-read:analyze?api-version=${API_VERSION}&pages=1-10`
 
     context.log(`OCR analyze start: ${file.name || '(unnamed)'} (${contentType})`) 
 
@@ -108,6 +108,7 @@ async function ocrHandler(req: HttpRequest, context: InvocationContext): Promise
         'Content-Type': contentType,
       },
       body: bytes,
+      signal: AbortSignal.timeout(10_000),
     })
 
     if (start.status !== 202) {
@@ -143,6 +144,7 @@ async function ocrHandler(req: HttpRequest, context: InvocationContext): Promise
         headers: {
           'Ocp-Apim-Subscription-Key': DOC_INTELLIGENCE_KEY,
         },
+        signal: AbortSignal.timeout(5_000),
       })
 
       const payload = (await poll.json().catch(() => ({}))) as any

@@ -18,13 +18,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Progress } from '@/components/ui/progress'
-import { Sparkle, Robot, ChartLineUp, Warning, ArrowRight } from '@phosphor-icons/react'
+import { Sparkle, Robot, ChartLineUp, ArrowRight } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import {
   nextSuggestions,
   getLedger,
-  isOverBudget,
   type CopilotState,
   type CopilotSuggestion,
   type BlueprintAIMode,
@@ -40,8 +38,6 @@ interface Props {
   isRunning?: boolean
   /** Last activity message to surface (e.g., "Generated 3 use cases"). */
   lastActivity?: string | null
-  /** Budget cap in USD — defaults to 0.5. */
-  budgetUSD?: number
 }
 
 export function BlueprintCopilotRail({
@@ -51,12 +47,9 @@ export function BlueprintCopilotRail({
   onAction,
   isRunning,
   lastActivity,
-  budgetUSD = 0.5,
 }: Props) {
   const suggestions = useMemo(() => nextSuggestions(state), [state])
   const ledger = state.customerId ? getLedger(state.customerId) : null
-  const overBudget = state.customerId ? isOverBudget(state.customerId, budgetUSD) : false
-  const spendPct = ledger ? Math.min(100, (ledger.totalUSD / budgetUSD) * 100) : 0
 
   // Autopilot: auto-fire safe suggestions, one at a time, with an autorun flag
   // to avoid re-firing in a loop. Only triggers when not already running and
@@ -66,12 +59,12 @@ export function BlueprintCopilotRail({
     autorunSeenRef.current.clear()
   }, [state.customerId])
   useEffect(() => {
-    if (mode !== 'autopilot' || isRunning || overBudget) return
+    if (mode !== 'autopilot' || isRunning) return
     const next = suggestions.find((s) => s.safeToAutorun && !autorunSeenRef.current.has(s.id))
     if (!next) return
     autorunSeenRef.current.add(next.id)
     void onAction(next)
-  }, [mode, suggestions, isRunning, overBudget, onAction])
+  }, [mode, suggestions, isRunning, onAction])
 
   if (mode === 'off') return null
 
@@ -104,28 +97,16 @@ export function BlueprintCopilotRail({
           </Select>
           {ledger && (
             <Badge variant="outline" className="gap-1 text-[10px] font-normal">
-              <ChartLineUp size={10} /> ${ledger.totalUSD.toFixed(3)} / ${budgetUSD.toFixed(2)}
+              <ChartLineUp size={10} /> {ledger.totalTokens.toLocaleString()} provider tokens
             </Badge>
           )}
         </div>
-        {ledger && (
-          <Progress
-            value={spendPct}
-            className={`h-1 mt-2 ${overBudget ? '[&>*]:bg-rose-500' : spendPct > 70 ? '[&>*]:bg-amber-500' : '[&>*]:bg-emerald-500'}`}
-          />
-        )}
+        <p className="text-[10px] text-muted-foreground mt-2">Daily and per-minute quotas are enforced by the server.</p>
       </CardHeader>
 
       <CardContent className="space-y-2">
         {!state.customerId && (
           <div className="text-[12px] text-muted-foreground">Pick a customer to get suggestions.</div>
-        )}
-
-        {overBudget && (
-          <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-[11px] text-rose-700 flex items-start gap-1.5">
-            <Warning size={12} weight="fill" className="mt-0.5 flex-shrink-0" />
-            <span>Budget cap reached for this customer. Open Copilot settings to raise it.</span>
-          </div>
         )}
 
         {isRunning && (
@@ -164,7 +145,7 @@ export function BlueprintCopilotRail({
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-[12px] font-medium leading-snug">{s.title}</div>
                   <Badge variant="outline" className="text-[10px] font-normal flex-shrink-0">
-                    {s.estCostCents === 0 ? 'free' : `~${s.estCostCents}¢`}
+                    {s.estCostCents === 0 ? 'No inference' : 'Metered AI'}
                   </Badge>
                 </div>
                 <div className="text-[11px] text-muted-foreground mt-1 leading-snug">{s.detail}</div>
@@ -173,7 +154,7 @@ export function BlueprintCopilotRail({
                     size="sm"
                     variant={s.action === 'pull-iq' ? 'default' : 'secondary'}
                     onClick={() => onAction(s)}
-                    disabled={isRunning || overBudget}
+                    disabled={isRunning}
                     className="h-6 text-[11px] gap-1"
                   >
                     {mode === 'autopilot' && s.safeToAutorun ? 'Auto' : 'Run'} <ArrowRight size={10} />
@@ -187,15 +168,16 @@ export function BlueprintCopilotRail({
 
         {ledger && ledger.callCount > 0 && (
           <details className="text-[10px] text-muted-foreground pt-1">
-            <summary className="cursor-pointer hover:text-foreground">Spend by model ({ledger.callCount} calls)</summary>
+            <summary className="cursor-pointer hover:text-foreground">Provider usage ({ledger.callCount} calls, {ledger.cachedCalls} cached)</summary>
             <ul className="mt-1 space-y-0.5">
               {Object.entries(ledger.byModel).map(([m, v]) => (
                 <li key={m} className="flex justify-between">
                   <span>{m}</span>
-                  <span>${v.usd.toFixed(4)} ({v.calls})</span>
+                  <span>{v.tokens.toLocaleString()} tokens ({v.calls})</span>
                 </li>
               ))}
             </ul>
+            {ledger.unknownUsageCalls > 0 && <p>Usage was not returned for {ledger.unknownUsageCalls} calls; no dollar estimate is inferred.</p>}
           </details>
         )}
       </CardContent>

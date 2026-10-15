@@ -31,7 +31,6 @@ import { Badge } from '@/components/ui/badge'
 import { Sparkle, ArrowClockwise, Warning, ChartLineUp, Database, CheckCircle, CaretDown, CaretUp, Quotes, DownloadSimple } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { AIServiceError, getAIReadiness } from '@/lib/openai-service'
 import {
   generateUseCaseCandidates as requestUseCaseCandidates,
   type CandidateEvidenceSource,
@@ -169,16 +168,6 @@ export function DiscoveryResults({ session, onCreateUseCases, onBack }: Discover
         loadFallbackUseCases('no-responses')
         setIsGenerating(false)
         return
-      }
-
-      const readiness = await getAIReadiness()
-      if (readiness.status !== 'ready') {
-        throw new AIServiceError(
-          readiness.message || 'AI provider is unavailable.',
-          readiness.code || 'PROVIDER_ERROR',
-          readiness.retryable ?? false,
-          readiness.correlationId,
-        )
       }
 
       // Desired business KPI outcomes captured in Discovery.

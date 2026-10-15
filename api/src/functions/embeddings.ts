@@ -1,97 +1,32 @@
-import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions'
-import { makeCorsHeaders } from '../lib/xml-utils'
-import { getAoaiAuthHeaders } from '../lib/iq-credential'
-import {
-  EMBEDDING_DIMENSIONS,
-  getEmbeddingDeployment,
-  validateEmbeddingVectors,
-} from '../lib/embedding-config'
+import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { randomUUID } from "crypto";
+import { AIProviderError, toAIErrorBody } from "../lib/ai-provider";
+import { embedTexts } from "../lib/embedding-client";
+import { EMBEDDING_DIMENSIONS } from "../lib/embedding-config";
+import { makeCorsHeaders } from "../lib/xml-utils";
 
-const corsHeaders = makeCorsHeaders('POST, OPTIONS')
+const corsHeaders = makeCorsHeaders("POST, OPTIONS");
 
-interface EmbeddingsBody {
-  input?: string | string[]
-}
-
-interface AoaiEmbeddingsResponse {
-  data: Array<{ embedding: number[]; index: number }>
-  model?: string
-  usage?: { prompt_tokens: number; total_tokens: number }
-}
-
-async function embeddingsHandler(req: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
-  if (req.method === 'OPTIONS') return { status: 204, headers: corsHeaders }
-
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT
-  const apiKey = process.env.AZURE_OPENAI_API_KEY
-  const deployment = getEmbeddingDeployment()
-  const apiVersion = process.env.AZURE_OPENAI_EMBEDDING_API_VERSION || '2024-10-21'
-
-  if (!endpoint) {
-    return {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      jsonBody: { error: 'AZURE_OPENAI_ENDPOINT not configured' },
-    }
-  }
-
-  const authHeaders = await getAoaiAuthHeaders(apiKey)
-  if (!authHeaders) {
-    return {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      jsonBody: { error: 'No auth available (set AZURE_OPENAI_AUTH_TYPE=entra-id with az login, or supply AZURE_OPENAI_API_KEY)' },
-    }
-  }
-
-  let body: EmbeddingsBody
+async function embeddingsHandler(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+  if (request.method === "OPTIONS") return { status: 204, headers: corsHeaders };
+  const correlationId = randomUUID();
   try {
-    body = (await req.json()) as EmbeddingsBody
-  } catch {
-    return { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, jsonBody: { error: 'Invalid JSON' } }
-  }
-
-  const input = body.input
-  if (!input || (Array.isArray(input) && input.length === 0)) {
-    return { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, jsonBody: { error: 'input required' } }
-  }
-
-  const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${deployment}/embeddings?api-version=${apiVersion}`
-
-  try {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders },
-      body: JSON.stringify({ input }),
-    })
-    if (!r.ok) {
-      const text = await r.text()
-      return {
-        status: r.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        jsonBody: { error: 'Embeddings call failed', detail: text },
-      }
+    let body: { input?: unknown };
+    try {
+      body = await request.json() as { input?: unknown };
+    } catch {
+      throw new AIProviderError("INVALID_REQUEST", "Invalid JSON request.", false, 400);
     }
-    const data = (await r.json()) as AoaiEmbeddingsResponse
-    const vectors = data.data.sort((a, b) => a.index - b.index).map((d) => d.embedding)
-    validateEmbeddingVectors(vectors)
-    return {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      jsonBody: { vectors, model: data.model || deployment, dimensions: EMBEDDING_DIMENSIONS, usage: data.usage },
+    const inputs = typeof body?.input === "string" ? [body.input] : body?.input;
+    if (!Array.isArray(inputs) || !inputs.every((value): value is string => typeof value === "string")) {
+      throw new AIProviderError("INVALID_REQUEST", "input must be a string or an array of strings.", false, 400);
     }
-  } catch (err) {
-    return {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      jsonBody: { error: 'Embeddings request failed', detail: err instanceof Error ? err.message : String(err) },
-    }
+    const result = await embedTexts(inputs);
+    return { status: 200, headers: corsHeaders, jsonBody: { ...result, dimensions: EMBEDDING_DIMENSIONS } };
+  } catch (error) {
+    context.error(`Embeddings failed correlationId=${correlationId}:`, error);
+    return { status: error instanceof AIProviderError ? error.status : 502, headers: corsHeaders, jsonBody: toAIErrorBody(error, correlationId) };
   }
 }
 
-app.http('embeddings', {
-  route: 'embeddings',
-  methods: ['POST', 'OPTIONS'],
-  authLevel: 'anonymous',
-  handler: embeddingsHandler,
-})
+app.http("embeddings", { route: "embeddings", methods: ["POST", "OPTIONS"], authLevel: "anonymous", handler: embeddingsHandler });

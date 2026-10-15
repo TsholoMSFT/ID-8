@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": [
+    "scripts/azure-admin.ts",
+    "scripts/configure-managed-api.ts",
+    "scripts/migrate-knowledge.ts",
+    "scripts/verify-knowledge.ts",
+    "scripts/verify-managed-api.ts"
+  ]
+}

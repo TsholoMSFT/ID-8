@@ -4,11 +4,19 @@
     "exclude": ["/api/*", "/assets/*", "*.{css,js,svg,png,jpg,jpeg,gif,ico,woff,woff2}"]
   },
   "routes": [
+    { "route": "/.auth/login/github", "statusCode": 404 },
+    { "route": "/api/health", "methods": ["GET", "OPTIONS"], "allowedRoles": ["anonymous"] },
+    { "route": "/api/ai-readiness", "methods": ["GET", "OPTIONS"], "allowedRoles": ["anonymous"] },
+    { "route": "/api/rss-feeds", "methods": ["GET", "OPTIONS"], "allowedRoles": ["anonymous"] },
+    { "route": "/api/filings-feeds", "methods": ["GET", "OPTIONS"], "allowedRoles": ["anonymous"] },
+    { "route": "/api/regulatory-feeds", "methods": ["GET", "OPTIONS"], "allowedRoles": ["anonymous"] },
+    { "route": "/api/questionnaire/*", "methods": ["GET", "POST", "OPTIONS"], "allowedRoles": ["anonymous"] },
     {
       "route": "/api/*",
-      "allowedRoles": ["anonymous"]
+      "allowedRoles": ["authenticated"]
     }
   ],
+  "platform": { "apiRuntime": "node:22" },
   "responseOverrides": {
     "404": {
       "rewrite": "/index.html"

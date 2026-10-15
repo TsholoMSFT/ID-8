@@ -57,16 +57,18 @@ Even for HTTP-only projects, local host stability is best when storage is set.
 The frontend calls `/api/*`.
 
 - If you are running Vite separately, confirm any proxy config (or Static Web Apps emulator) is routing `/api` to the Functions host.
-- To use a deployed API when local Core Tools is unavailable, set `KARABO_API_PROXY_TARGET` before `npm run dev`:
+- Production uses the managed Static Web Apps API; the old standalone Function host is retired. A Vite proxy does not supply a production Entra session. Use the deployed site in a signed-in browser, or run local Functions with the explicit development-only bypass:
 
 ```powershell
-$env:KARABO_API_PROXY_TARGET = 'https://<function-app-hostname>'
+# Set KARABO_ALLOW_ANONYMOUS_LOCAL=true in ignored api/local.settings.json.
+# Use a development Storage connection/Azurite for quota and questionnaire data.
 npm run dev
 ```
 
-After liveness succeeds, verify model readiness separately:
+After liveness succeeds, check non-billable configuration and explicitly test inference only when necessary:
 
 ```powershell
+Invoke-RestMethod http://127.0.0.1:7071/api/ai-readiness
 Invoke-RestMethod http://127.0.0.1:7071/api/ai-readiness?refresh=true
 ```
 

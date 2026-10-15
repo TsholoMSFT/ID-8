@@ -7,7 +7,7 @@ import {
   parseRSSItems,
   type RSSItem,
 } from "../lib/xml-utils";
-import { getAoaiAuthHeaders } from "../lib/iq-credential";
+import { embedTexts } from "../lib/embedding-client";
 import {
   EMBEDDING_DIMENSIONS,
   cosineSimilarity,
@@ -60,22 +60,11 @@ function itemText(item: RSSItem): string {
 
 /** Batch-embed texts via the configured embedding model. Returns null when auth/endpoint is unavailable. */
 async function embed(texts: string[]): Promise<number[][] | null> {
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const deployment = getEmbeddingDeployment();
-  const apiVersion = process.env.AZURE_OPENAI_EMBEDDING_API_VERSION || "2024-10-21";
-  if (!endpoint || texts.length === 0) return null;
-  const authHeaders = await getAoaiAuthHeaders(apiKey);
-  if (!authHeaders) return null;
-  const url = `${endpoint.replace(/\/$/, "")}/openai/deployments/${deployment}/embeddings?api-version=${apiVersion}`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders },
-    body: JSON.stringify({ input: texts }),
-  });
-  if (!r.ok) return null;
-  const data = (await r.json()) as { data: Array<{ embedding: number[]; index: number }> };
-  const vectors = data.data.sort((a, b) => a.index - b.index).map((d) => d.embedding);
+  if (!texts.length) return [];
+  const vectors: number[][] = [];
+  for (let offset = 0; offset < texts.length; offset += 16) {
+    vectors.push(...(await embedTexts(texts.slice(offset, offset + 16))).vectors);
+  }
   validateEmbeddingVectors(vectors);
   return vectors;
 }

@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { makeCorsHeaders, safeErrorMessage } from "../lib/xml-utils";
 import { findCuratedTickers } from "../lib/known-tickers";
+import { completeAI } from "../lib/ai-completion";
 
 /**
  * Azure Function for Earnings Transcript Search
@@ -848,23 +849,10 @@ async function lookupTickerStooq(name: string): Promise<TickerLookupResult[]> {
 }
 
 // ── Source: AI guess (Layer 8 — only when all others returned empty) ─────
-function aiBaseUrl(): string {
-  const host = process.env.WEBSITE_HOSTNAME;
-  if (host) return `https://${host}/api/chat`;
-  const port = process.env.FUNCTIONS_CUSTOMHANDLER_PORT || process.env.PORT || "7071";
-  return `http://localhost:${port}/api/chat`;
-}
-
 async function aiTickerGuess(name: string): Promise<TickerLookupResult[]> {
   const prompt = `Return STRICT JSON only (no prose, no markdown) for the most likely PRIMARY publicly traded stock ticker for the company named "${name}".\nSchema: { "ticker": string, "exchange": string, "region": "US"|"ZA"|"EU"|"GLOBAL", "confidence": "high"|"medium"|"low", "reason": string }.\nIf you are not confident the company is publicly listed, return { "ticker": "", "exchange": "", "region": "GLOBAL", "confidence": "low", "reason": "unknown" }.`;
-  const resp = await fetch(aiBaseUrl(), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ task: "extraction", prompt, expectJson: true }),
-  });
-  if (!resp.ok) throw new Error(`AI guess ${resp.status}`);
-  const data = (await resp.json()) as any;
-  const raw = data?.content || data?.message || data?.choices?.[0]?.message?.content;
+  const data = await completeAI({ task: "extraction", prompt, expectJson: true, timeoutMs: 5000 });
+  const raw = data.content;
   if (!raw) return [];
   let parsed: any;
   try { parsed = typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return []; }

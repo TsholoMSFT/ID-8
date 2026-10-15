@@ -8,12 +8,11 @@
  *   - Use-case generation from grounded IQ context
  *   - Executive briefing (premium model)
  *
- * Includes a per-customer cost ledger that estimates spend from token counts
- * (heuristic: 4 chars/token in / 4 chars/token out) so the rail can show a
- * live $ meter and refuse calls past the configured budget cap.
+ * Records actual provider token usage for display. Durable server quotas,
+ * not this browser ledger, authorize billable work.
  */
 
-import { callAIForTask } from './openai-service'
+import { callAIForTask, type AIUsageMetadata } from './openai-service'
 import { ARCHETYPES, type ArchetypeDef, type UseCaseInput, type TechnologyEstate } from './solution-blueprint'
 import {
   graphSearch,
@@ -60,35 +59,15 @@ export interface CopilotState {
 
 export interface SpendLedger {
   customerId: string
-  totalUSD: number
   callCount: number
-  byModel: Record<string, { calls: number; usd: number }>
-  events: Array<{ at: number; action: string; model: string; usd: number }>
+  totalTokens: number
+  cachedCalls: number
+  unknownUsageCalls: number
+  byModel: Record<string, { calls: number; tokens: number }>
+  events: Array<{ at: number; action: string; model: string; tokens?: number; cached: boolean }>
 }
 
-const LEDGER_KEY = 'karabo-copilot-spend-ledger'
-const DEFAULT_BUDGET_USD = 0.5
-
-// ── Per-1M-token prices (USD) — kept in sync with openai-service routing ──
-const PRICE_PER_1M: Record<string, { in: number; out: number }> = {
-  'phi-4-mini-instruct': { in: 0.075, out: 0.075 },
-  'gpt-5-nano':          { in: 0.05,  out: 0.05  },
-  'gpt-4o-mini':         { in: 0.15,  out: 0.6   },
-  'gpt-4o':              { in: 2.5,   out: 10    },
-}
-
-const MODEL_FOR_TASK: Record<string, keyof typeof PRICE_PER_1M> = {
-  general:           'phi-4-mini-instruct',
-  extraction:        'phi-4-mini-instruct',
-  formatting:        'phi-4-mini-instruct',
-  analysis:          'gpt-4o-mini',
-  architecture:      'gpt-4o-mini',
-  'business-case':   'gpt-4o-mini',
-  governance:        'gpt-4o-mini',
-  journey:           'gpt-4o-mini',
-  'cost-optimization': 'gpt-4o-mini',
-  executive:         'gpt-4o',
-}
+const LEDGER_KEY = 'karabo-copilot-token-ledger-v2'
 
 // ── Cost ledger (localStorage) ─────────────────────────────────────────────
 function readLedgers(): Record<string, SpendLedger> {
@@ -107,38 +86,31 @@ function writeLedgers(all: Record<string, SpendLedger>) {
 export function getLedger(customerId: string): SpendLedger {
   const all = readLedgers()
   return (
-    all[customerId] || { customerId, totalUSD: 0, callCount: 0, byModel: {}, events: [] }
+    all[customerId] || { customerId, callCount: 0, totalTokens: 0, cachedCalls: 0, unknownUsageCalls: 0, byModel: {}, events: [] }
   )
 }
 
 export function recordSpend(
   customerId: string,
   action: string,
-  task: keyof typeof MODEL_FOR_TASK,
-  charsIn: number,
-  charsOut: number,
+  metadata: AIUsageMetadata,
 ): SpendLedger {
-  const model = MODEL_FOR_TASK[task]
-  const price = PRICE_PER_1M[model]
-  const tokensIn = charsIn / 4
-  const tokensOut = charsOut / 4
-  const usd = (tokensIn * price.in + tokensOut * price.out) / 1_000_000
+  const model = metadata.deployment || metadata.model || 'unspecified deployment'
+  const tokens = metadata.usage?.total_tokens
   const all = readLedgers()
-  const cur = all[customerId] || { customerId, totalUSD: 0, callCount: 0, byModel: {}, events: [] }
-  cur.totalUSD += usd
+  const cur = getLedger(customerId)
   cur.callCount += 1
-  cur.byModel[model] = cur.byModel[model] || { calls: 0, usd: 0 }
+  cur.totalTokens += tokens ?? 0
+  cur.cachedCalls += metadata.cached ? 1 : 0
+  cur.unknownUsageCalls += tokens === undefined ? 1 : 0
+  cur.byModel[model] = cur.byModel[model] || { calls: 0, tokens: 0 }
   cur.byModel[model].calls += 1
-  cur.byModel[model].usd += usd
-  cur.events.unshift({ at: Date.now(), action, model, usd })
+  cur.byModel[model].tokens += tokens ?? 0
+  cur.events.unshift({ at: Date.now(), action, model, tokens, cached: metadata.cached })
   cur.events = cur.events.slice(0, 50)
   all[customerId] = cur
   writeLedgers(all)
   return cur
-}
-
-export function isOverBudget(customerId: string, capUSD = DEFAULT_BUDGET_USD): boolean {
-  return getLedger(customerId).totalUSD >= capUSD
 }
 
 // ── Suggestion engine (deterministic — no LLM) ─────────────────────────────
@@ -267,7 +239,6 @@ export async function generateStarterUseCases(opts: {
   estate: TechnologyEstate
   groundingNote: string
 }): Promise<GeneratedUseCase[]> {
-  if (isOverBudget(opts.customerId)) throw new Error('Budget cap reached for this customer.')
   const archetypeCatalog = ARCHETYPES.map((a) => `- ${a.id}: ${a.name} — ${a.description}`).join('\n')
   const prompt = `You are a Microsoft Cloud Solution Architect helping shape a Build engagement for "${opts.customerName}".
 
@@ -283,8 +254,8 @@ ${archetypeCatalog}
 
 Return STRICT JSON array of EXACTLY 3 starter use cases the customer is most likely to prioritise based on the estate + signals above. Each item: { "name": string (max 60 chars), "description": string (1–2 sentences, plain English), "archetypeId": one of the ids above, "rationale": string (max 120 chars) }. No prose outside the JSON.`
   const sysPrompt = 'You output strict JSON. Never wrap in markdown fences.'
-  const out = await callAIForTask('analysis', prompt, { expectJson: true, systemPrompt: sysPrompt })
-  recordSpend(opts.customerId, 'generate-use-cases', 'analysis', prompt.length, out.length)
+  const out = await callAIForTask('analysis', prompt, { expectJson: true, systemPrompt: sysPrompt,
+    onUsage: (metadata) => recordSpend(opts.customerId, 'generate-use-cases', metadata) })
   try {
     const parsed = JSON.parse(out)
     if (!Array.isArray(parsed)) return []
@@ -312,7 +283,6 @@ export async function recommendArchetype(opts: {
   estate: TechnologyEstate
   groundingNote: string
 }): Promise<ArchetypeRecommendation | null> {
-  if (isOverBudget(opts.customerId)) throw new Error('Budget cap reached for this customer.')
   const catalog = ARCHETYPES.map((a) => `- ${a.id}: ${a.name} — ${a.description} (KPIs: ${(a.typicalKpis || []).join(', ') || 'n/a'})`).join('\n')
   const prompt = `Pick the best archetype for this use case.
 
@@ -326,8 +296,8 @@ Candidates:
 ${catalog}
 
 Return STRICT JSON: { "archetypeId": "<id>", "rationale": "<≤200 chars why this fits>", "alternatives": [ {"id":"<id>","reason":"<≤120 chars>"} (up to 2) ] }`
-  const out = await callAIForTask('analysis', prompt, { expectJson: true, systemPrompt: 'Strict JSON only, no fences.' })
-  recordSpend(opts.customerId, 'recommend-archetype', 'analysis', prompt.length, out.length)
+  const out = await callAIForTask('analysis', prompt, { expectJson: true, systemPrompt: 'Strict JSON only, no fences.',
+    onUsage: (metadata) => recordSpend(opts.customerId, 'recommend-archetype', metadata) })
   try {
     const parsed = JSON.parse(out)
     const archetype = ARCHETYPES.find((a) => a.id === parsed.archetypeId)
@@ -355,7 +325,6 @@ export async function generateExecBrief(opts: {
   useCases: Array<{ name: string; description?: string; archetypeName?: string }>
   groundingNote: string
 }): Promise<string> {
-  if (isOverBudget(opts.customerId)) throw new Error('Budget cap reached for this customer.')
   const ucList = opts.useCases.map((u, i) => `${i + 1}. ${u.name}${u.archetypeName ? ` (${u.archetypeName})` : ''} — ${u.description || ''}`).join('\n')
   const prompt = `Write a crisp, board-ready 1-page executive brief for "${opts.customerName}".
 
@@ -380,7 +349,7 @@ Sections (in order, markdown):
 6. **Decision asked** (1 sentence)
 
 Tone: confident, plain English, no fluff. ≤ 350 words.`
-  const out = await callAIForTask('executive', prompt, { systemPrompt: 'You are a Microsoft enterprise narrative writer.' })
-  recordSpend(opts.customerId, 'generate-exec-brief', 'executive', prompt.length, out.length)
+  const out = await callAIForTask('executive', prompt, { systemPrompt: 'You are a Microsoft enterprise narrative writer.',
+    onUsage: (metadata) => recordSpend(opts.customerId, 'generate-exec-brief', metadata) })
   return out
 }

@@ -5,17 +5,22 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json",
     "watch": "tsc -w",
     "prestart": "npm run build",
     "start": "func start",
-    "test": "tsx --test src/lib/*.test.ts"
+    "test": "tsx --test src/lib/*.test.ts",
+    "knowledge:migrate": "tsx scripts/migrate-knowledge.ts",
+    "knowledge:verify": "tsx scripts/verify-knowledge.ts",
+    "verify:managed": "tsx scripts/verify-managed-api.ts",
+    "knowledge:seed": "tsx scripts/seed-search-from-kv.ts",
+    "configure:managed": "tsx scripts/configure-managed-api.ts"
   },
   "dependencies": {
     "@azure/data-tables": "^13.3.0",
     "@azure/functions": "^4.0.0",
     "@azure/identity": "^4.5.0",
     "@azure/keyvault-secrets": "^4.11.2",
-    "@azure/search-documents": "^13.0.0",
     "@azure/storage-blob": "^12.29.1",
     "zod": "^4.4.3"
   },

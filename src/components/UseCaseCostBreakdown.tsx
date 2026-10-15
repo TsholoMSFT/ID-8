@@ -34,13 +34,18 @@ export function UseCaseCostBreakdown({ useCase, onUpdate, compact = false }: Use
   const [users, setUsers] = useState<number>(useCase.runCost?.inputs?.activeUsers ?? 100)
   const [tx, setTx] = useState<number>(useCase.runCost?.inputs?.monthlyTransactions ?? 50_000)
   const [region, setRegion] = useState<string>(useCase.runCost?.inputs?.region ?? 'eastus')
+  const [searchBackend, setSearchBackend] = useState<'azure-ai-search' | 'blob-hybrid'>(useCase.runCost?.inputs?.searchBackend ?? 'azure-ai-search')
+  const [sharedPlatformId, setSharedPlatformId] = useState(useCase.runCost?.inputs?.sharedPlatformId ?? '')
 
-  const live = useMemo(() => estimateRunCost(useCase, { activeUsers: users, monthlyTransactions: tx, region }), [useCase, users, tx, region])
+  const live = useMemo(() => estimateRunCost(useCase, { activeUsers: users, monthlyTransactions: tx, region, searchBackend, sharedPlatformId: sharedPlatformId.trim() }), [useCase, users, tx, region, searchBackend, sharedPlatformId])
   const persisted = useCase.runCost
   const dirty = !persisted
     || persisted.inputs?.activeUsers !== users
     || persisted.inputs?.monthlyTransactions !== tx
     || persisted.inputs?.region !== region
+    || (persisted.inputs?.searchBackend ?? 'azure-ai-search') !== searchBackend
+    || (persisted.inputs?.sharedPlatformId ?? '') !== sharedPlatformId.trim()
+    || persisted.pricingVersion !== PRICING_VERSION
 
   const save = () => {
     if (!onUpdate) return
@@ -89,6 +94,26 @@ export function UseCaseCostBreakdown({ useCase, onUpdate, compact = false }: Use
               </Select>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Knowledge retrieval, when required</Label>
+              <Select value={searchBackend} onValueChange={(value) => setSearchBackend(value === 'blob-hybrid' ? 'blob-hybrid' : 'azure-ai-search')}>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="azure-ai-search">Dedicated Azure AI Search</SelectItem>
+                  <SelectItem value="blob-hybrid">Blob hybrid (small, low-traffic corpus)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`shared-${useCase.id}`} className="text-xs">Shared platform group (optional)</Label>
+              <Input id={`shared-${useCase.id}`} value={sharedPlatformId} onChange={(event) => setSharedPlatformId(event.target.value)} placeholder="Same group only for workloads sharing one platform" className="h-8" />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Planning estimate, not actual billing. Matching platform groups share fixed Search capacity in portfolio totals; unrelated workloads remain separate. Re-save older estimates to apply the new cost model.
+          </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
             <div className="rounded border bg-muted/30 p-2">

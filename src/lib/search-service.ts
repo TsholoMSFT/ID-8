@@ -1,9 +1,8 @@
 /**
- * Frontend shim for AI Search-backed knowledge lookups.
- * Calls the karabo-api Function App endpoints (linked via SWA → APIs).
+ * Frontend shim for private Blob-backed hybrid knowledge lookups.
  */
 
-const API_BASE = '/api'
+const API_BASE = import.meta.env.VITE_API_ENDPOINT || '/api'
 
 export interface KnowledgeHit {
   id: string
@@ -19,6 +18,8 @@ export interface SearchResult {
   items: KnowledgeHit[]
   count: number
   vector: boolean
+  provider?: 'blob-hybrid'
+  message?: string
 }
 
 export async function searchKnowledge(query: string, top = 5, category?: string): Promise<SearchResult> {

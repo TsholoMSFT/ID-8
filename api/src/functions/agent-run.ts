@@ -2,6 +2,8 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { makeCorsHeaders, safeErrorMessage } from "../lib/xml-utils";
 import { dispatchTool, getFoundryAgentToken, type ToolCall } from "../lib/agent-tools";
 import { notConfiguredBody } from "../lib/iq-credential";
+import { reserveAIUsage } from "../lib/request-policy";
+import { AIProviderError, toAIErrorBody } from "../lib/ai-provider";
 import { getCachedAgentId } from "./agent-provision";
 
 /**
@@ -46,6 +48,7 @@ async function fjson(env: AgentEnv, path: string, init?: RequestInit): Promise<a
   const url = `${env.base}${path}${path.includes("?") ? "&" : "?"}api-version=${API_VERSION}`;
   const res = await fetch(url, {
     ...init,
+    signal: AbortSignal.timeout(10_000),
     headers: { Authorization: `Bearer ${env.token}`, "Content-Type": "application/json", ...(init?.headers as any) },
   });
   const text = await res.text();
@@ -115,6 +118,10 @@ async function runHandler(request: HttpRequest, _ctx: InvocationContext): Promis
     if (mode === "create") {
       const body: any = await request.json().catch(() => ({}));
       const initialMessage: string = body?.initialMessage || "Begin the blueprint envisioning.";
+      if (typeof initialMessage !== "string" || Buffer.byteLength(initialMessage) > 8000) {
+        return { status: 400, headers: corsHeaders, jsonBody: { error: "Agent message must be a string of at most 8,000 bytes." } };
+      }
+      await reserveAIUsage({ tokens: 10_000 });
       const thread = await fjson(env, `/threads`, { method: "POST", body: JSON.stringify({}) });
       await fjson(env, `/threads/${thread.id}/messages`, {
         method: "POST",
@@ -122,7 +129,7 @@ async function runHandler(request: HttpRequest, _ctx: InvocationContext): Promis
       });
       const run = await fjson(env, `/threads/${thread.id}/runs`, {
         method: "POST",
-        body: JSON.stringify({ assistant_id: agentId }),
+        body: JSON.stringify({ assistant_id: agentId, max_prompt_tokens: 8000, max_completion_tokens: 2000 }),
       });
       return { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }, jsonBody: { configured: true, threadId: thread.id, runId: run.id, status: run.status } };
     }
@@ -131,13 +138,17 @@ async function runHandler(request: HttpRequest, _ctx: InvocationContext): Promis
       const body: any = await request.json().catch(() => ({}));
       const { threadId, message } = body || {};
       if (!threadId || !message) return { status: 400, headers: corsHeaders, jsonBody: { error: "threadId and message required" } };
+      if (typeof message !== "string" || Buffer.byteLength(message) > 8000) {
+        return { status: 400, headers: corsHeaders, jsonBody: { error: "Agent message must be a string of at most 8,000 bytes." } };
+      }
+      await reserveAIUsage({ tokens: 10_000 });
       await fjson(env, `/threads/${threadId}/messages`, {
         method: "POST",
         body: JSON.stringify({ role: "user", content: message }),
       });
       const run = await fjson(env, `/threads/${threadId}/runs`, {
         method: "POST",
-        body: JSON.stringify({ assistant_id: agentId }),
+        body: JSON.stringify({ assistant_id: agentId, max_prompt_tokens: 8000, max_completion_tokens: 2000 }),
       });
       return { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }, jsonBody: { configured: true, threadId, runId: run.id, status: run.status } };
     }
@@ -168,6 +179,10 @@ async function runHandler(request: HttpRequest, _ctx: InvocationContext): Promis
 
     return { status: 400, headers: corsHeaders, jsonBody: { error: `Unknown mode: ${mode}` } };
   } catch (err) {
+    if (err instanceof AIProviderError) {
+      _ctx.warn(`Agent request rejected: ${err.code}`);
+      return { status: err.status, headers: corsHeaders, jsonBody: toAIErrorBody(err, _ctx.invocationId) };
+    }
     return { status: 502, headers: corsHeaders, jsonBody: { error: safeErrorMessage(err, "Agent run failed") } };
   }
 }

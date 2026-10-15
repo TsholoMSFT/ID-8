@@ -4,6 +4,7 @@
 // Polyfill for crypto in Azure Static Web Apps managed functions
 // The @azure/storage-blob SDK requires crypto which may not be globally available
 import * as crypto from "crypto";
+import "./lib/http-policy";
 if (typeof globalThis.crypto === "undefined") {
   (globalThis as any).crypto = crypto;
 }

@@ -19,6 +19,8 @@ export interface CostEngineInputs {
   region?: string
   /** Pre-set effort weeks. Falls back to useCase.aiEffortEstimate.effortWeeks. */
   effortWeeksOverride?: number
+  searchBackend?: 'azure-ai-search' | 'blob-hybrid'
+  sharedPlatformId?: string
 }
 
 const DEFAULT_INPUTS: Required<CostEngineInputs> = {
@@ -26,12 +28,15 @@ const DEFAULT_INPUTS: Required<CostEngineInputs> = {
   monthlyTransactions: 50_000,
   region: 'eastus',
   effortWeeksOverride: 0,
+  searchBackend: 'azure-ai-search',
+  sharedPlatformId: '',
 }
 
 interface Line {
   label: string
   monthlyUSD: number
   bucket: 'compute' | 'license' | 'data'
+  sharedKey?: string
 }
 
 function regionMultiplier(region: string): number {
@@ -62,7 +67,7 @@ function flattenSolutions(solutions: UseCaseMicrosoftSolution[] | undefined): Se
 /**
  * Estimate run cost for a single use case. Pure / deterministic.
  */
-export function estimateRunCost(useCase: UseCase, inputs: CostEngineInputs = {}): UseCaseRunCost {
+export function estimateRunCost(useCase: Pick<UseCase, 'microsoftSolutions' | 'referenceArchitecture' | 'aiEffortEstimate'>, inputs: CostEngineInputs = {}): UseCaseRunCost {
   const merged = { ...DEFAULT_INPUTS, ...inputs }
   const mult = regionMultiplier(merged.region)
   const services = flattenSolutions(useCase.microsoftSolutions)
@@ -80,10 +85,18 @@ export function estimateRunCost(useCase: UseCase, inputs: CostEngineInputs = {})
   }
 
   // ---------- AI Search ----------
-  if (services.has('azure-ai-search') || services.has('azure-cognitive-search') || useCase.referenceArchitecture === 'rag-pattern') {
+  const usesSearch = services.has('azure-ai-search') || services.has('azure-cognitive-search') || useCase.referenceArchitecture === 'rag-pattern'
+  if (usesSearch && merged.searchBackend === 'azure-ai-search') {
     const tier = merged.activeUsers > 1000 ? 'standard2' : merged.activeUsers > 200 ? 'standard1' : 'basic'
     const sku = pricing.aiSearch[tier as keyof typeof pricing.aiSearch]
-    lines.push({ label: `Azure AI Search — ${sku.label}`, monthlyUSD: sku.monthlyUSD, bucket: 'compute' })
+    lines.push({ label: `Azure AI Search — ${sku.label}`, monthlyUSD: sku.monthlyUSD, bucket: 'compute', sharedKey: 'azure-ai-search' })
+  } else if (usesSearch) {
+    lines.push({ label: 'Blob hybrid knowledge index (32 MiB capacity)', monthlyUSD: 0.032 * pricing.storage.blobHotPerGBMonth, bucket: 'data' })
+    lines.push({
+      label: 'Query embeddings (100 input tokens/query; list-price reference)',
+      monthlyUSD: merged.monthlyTransactions * 100 / 1_000_000 * pricing.azureOpenAI['text-embedding-3-small'].inputPer1M,
+      bucket: 'compute',
+    })
   }
 
   // ---------- Document Intelligence ----------
@@ -94,10 +107,11 @@ export function estimateRunCost(useCase: UseCase, inputs: CostEngineInputs = {})
   }
 
   // ---------- Compute hosting ----------
-  if (services.has('azure-functions') || services.has('functions')) {
-    const execMillions = Math.max(0.5, merged.monthlyTransactions / 1_000_000)
-    const cost = execMillions * pricing.compute.functionsConsumption.perMillionExecutionsUSD + 25
-    lines.push({ label: `Azure Functions (Consumption + GB-s)`, monthlyUSD: cost, bucket: 'compute' })
+  if (services.has('azure-functions') || services.has('functions') || usesSearch && merged.searchBackend === 'blob-hybrid') {
+    const executions = merged.monthlyTransactions
+    const cost = executions / 1_000_000 * pricing.compute.functionsConsumption.perMillionExecutionsUSD
+      + executions * 0.2 * 0.128 * pricing.compute.functionsConsumption.perGBSecondUSD
+    lines.push({ label: 'Azure Functions usage (1 execution/transaction, 0.2s, 128 MB; free grants not allocated)', monthlyUSD: cost, bucket: 'compute' })
   } else if (services.has('container-apps') || services.has('azure-container-apps')) {
     lines.push({ label: 'Azure Container Apps (base)', monthlyUSD: pricing.compute.containerAppsBase.monthlyUSD, bucket: 'compute' })
   } else if (services.has('app-service') || services.has('azure-app-service')) {
@@ -155,9 +169,9 @@ export function estimateRunCost(useCase: UseCase, inputs: CostEngineInputs = {})
   // ---------- Region multiplier ----------
   for (const l of lines) l.monthlyUSD = Math.round(l.monthlyUSD * mult * 100) / 100
 
-  // Always-on minimum if nothing matched (so the user sees a baseline).
+  const noServices = lines.length === 0
   if (lines.length === 0) {
-    lines.push({ label: 'Baseline (Functions + Storage)', monthlyUSD: 75 * mult, bucket: 'compute' })
+    lines.push({ label: 'No hosted services selected; run cost is not yet quantified', monthlyUSD: 0, bucket: 'compute' })
   }
 
   const sumBucket = (b: Line['bucket']) => lines.filter(l => l.bucket === b).reduce((a, l) => a + l.monthlyUSD, 0)
@@ -181,40 +195,61 @@ export function estimateRunCost(useCase: UseCase, inputs: CostEngineInputs = {})
     totalMonthlyUSD,
     totalAnnualUSD,
     assumptions: lines.map(l => `${l.label}: $${l.monthlyUSD.toLocaleString(undefined, { maximumFractionDigits: 2 })}/mo`)
-      .concat(effortWeeks ? [`Implementation: ${effortWeeks} person-weeks × $${pricing.implementation.loadedWeeklyRateUSD}/wk × ${mult.toFixed(2)} region multiplier`] : []),
+      .concat(effortWeeks ? [`Implementation: ${effortWeeks} person-weeks × $${pricing.implementation.loadedWeeklyRateUSD}/wk × ${mult.toFixed(2)} region multiplier`] : [])
+      .concat(['Planning estimate, not an Azure bill. Subscription-wide free grants, transaction charges, cached tokens and negotiated discounts must be reconciled separately.'])
+      .concat(usesSearch && merged.searchBackend === 'blob-hybrid' ? ['Blob hybrid retrieval is intended for at most 1,000 documents / 32 MiB. It has no managed semantic ranker or dedicated search SLA.'] : [])
+      .concat(noServices ? ['Select hosted services before interpreting the zero subtotal; it is not a claim that the workload is free.'] : []),
     inputs: {
       activeUsers: merged.activeUsers,
       monthlyTransactions: merged.monthlyTransactions,
       region: merged.region,
+      searchBackend: merged.searchBackend,
+      sharedPlatformId: merged.sharedPlatformId,
     },
     lastEstimatedAt: Date.now(),
-    pricingVersion: pricing.version,
+    pricingVersion: PRICING_VERSION,
+    sharedPlatformCosts: lines.filter((line) => line.sharedKey).map((line) => ({ key: line.sharedKey!, monthlyUSD: line.monthlyUSD })),
   }
 }
 
 /** Sum monthly compute cost across a portfolio of use cases. */
-export function portfolioRunCost(useCases: UseCase[]): {
+export function portfolioRunCost(useCases: Array<Pick<UseCase, 'id' | 'runCost'>>): {
   totalMonthlyUSD: number
   totalAnnualUSD: number
   totalImplementationUSD: number
   withRunCost: number
+  sharedPlatformDeductionUSD: number
 } {
   let monthly = 0
   let impl = 0
   let withRunCost = 0
+  let sharedTotal = 0
+  const shared = new Map<string, number>()
   for (const uc of useCases) {
     const rc = uc.runCost
     if (!rc) continue
     monthly += rc.totalMonthlyUSD || 0
+    const group = rc.inputs?.sharedPlatformId?.trim()
+    if (group) {
+      for (const line of rc.sharedPlatformCosts || []) {
+        const key = `${group}:${rc.inputs?.region || 'eastus'}:${line.key}`
+        monthly -= line.monthlyUSD
+        sharedTotal += line.monthlyUSD
+        shared.set(key, Math.max(shared.get(key) || 0, line.monthlyUSD))
+      }
+    }
     impl += rc.oneTimeImplementationUSD || 0
     withRunCost += 1
   }
+  const sharedCost = [...shared.values()].reduce((sum, cost) => sum + cost, 0)
+  monthly += sharedCost
   return {
     totalMonthlyUSD: Math.round(monthly * 100) / 100,
     totalAnnualUSD: Math.round(monthly * 12 * 100) / 100,
     totalImplementationUSD: Math.round(impl),
     withRunCost,
+    sharedPlatformDeductionUSD: Math.round((sharedTotal - sharedCost) * 100) / 100,
   }
 }
 
-export const PRICING_VERSION = pricing.version
+export const PRICING_VERSION = `${pricing.version}-cost-model-2`

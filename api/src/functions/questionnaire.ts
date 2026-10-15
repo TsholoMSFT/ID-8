@@ -273,3 +273,5 @@ app.http("questionnaire-responses", {
   route: "questionnaire/{token}/responses",
   handler: responsesHandler,
 });
+
+export { createHandler, getHandler, submitHandler, responsesHandler };

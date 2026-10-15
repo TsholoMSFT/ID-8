@@ -35,6 +35,7 @@ interface CacheEntry {
   content: string
   timestamp: number
   model: string
+  metadata: AIUsageMetadata
 }
 
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
@@ -58,7 +59,7 @@ function getCacheKey(prompt: string, model: string, expectJson: boolean, systemP
 /**
  * Check cache for a response
  */
-function getFromCache(key: string): string | null {
+function getFromCache(key: string): CacheEntry | null {
   const entry = responseCache.get(key)
   if (!entry) return null
   
@@ -69,17 +70,18 @@ function getFromCache(key: string): string | null {
   }
   
   console.log(`[Cache HIT] Using cached response for ${entry.model}`)
-  return entry.content
+  return entry
 }
 
 /**
  * Store response in cache
  */
-function setCache(key: string, content: string, model: string): void {
+function setCache(key: string, content: string, model: string, metadata: AIUsageMetadata): void {
   responseCache.set(key, {
     content,
     timestamp: Date.now(),
     model,
+    metadata,
   })
   
   // Cleanup old entries if cache is too large (max 100 entries)
@@ -120,17 +122,17 @@ let cacheMisses = 0
 export type ModelType = 'gpt-4o' | 'gpt-4o-mini' | 'phi-4-mini-instruct' | 'gpt-5-nano'
 
 export type AITask = 
-  | 'extraction'      // Use case extraction from text → Phi-4-mini-instruct
+  | 'extraction'      // Structured extraction → GPT-5-nano
   | 'use-case-generation' // Grounded use-case candidates before scoring
   | 'solution-mapping' // Microsoft solution mapping after ranking
-  | 'formatting'      // JSON formatting, simple transforms → Phi-4-mini-instruct  
+  | 'formatting'      // JSON formatting, simple transforms → GPT-5-nano
   | 'analysis'        // COI estimation, effort estimation → GPT-4o-mini
   | 'architecture'    // Solution architecture → GPT-4o-mini
   | 'journey'         // Customer journey generation → GPT-4o-mini
   | 'governance'      // AI governance recommendations → GPT-4o-mini
   | 'business-case'   // Per-use-case business case markdown → GPT-4o-mini
   | 'cost-optimization' // SKU swap suggestions → GPT-4o-mini
-  | 'executive'       // Executive summaries → GPT-4o (premium)
+  | 'executive'       // Executive summaries → mini by default
   | 'engagement-agenda'   // Session agenda from transcript → GPT-4o-mini
   | 'engagement-email'    // Follow-up email → Phi-4-mini-instruct
   | 'engagement-timeline' // Engagement task timeline → GPT-4o-mini
@@ -160,18 +162,16 @@ const AI_TASKS = new Set<AITask>([
 
 /**
  * Get the optimal model for a given task
- * Cost-optimized routing:
- * - Phi-4-mini-instruct ($0.075/1M): extraction, formatting, general
- * - GPT-5-nano ($0.14/1M): fallback for extraction
- * - GPT-4o-mini ($0.26/1M): analysis, architecture, effort
- * - GPT-4o ($2.50/1M): executive summaries (premium)
+ * Nano handles structured extraction/formatting, Phi handles plain text,
+ * and mini handles analysis and executive content. Actual deployment usage,
+ * not alias-based price guesses, is returned by the server.
  */
 export function getModelForTask(task: AITask): ModelType {
   const taskModelMap: Record<AITask, ModelType> = {
-    extraction: 'phi-4-mini-instruct',
+    extraction: 'gpt-5-nano',
     'use-case-generation': 'gpt-4o-mini',
     'solution-mapping': 'gpt-4o-mini',
-    formatting: 'phi-4-mini-instruct',
+    formatting: 'gpt-5-nano',
     general: 'phi-4-mini-instruct',
     analysis: 'gpt-4o-mini',
     architecture: 'gpt-4o-mini',
@@ -179,7 +179,7 @@ export function getModelForTask(task: AITask): ModelType {
     governance: 'gpt-4o-mini',
     'business-case': 'gpt-4o-mini',
     'cost-optimization': 'gpt-4o-mini',
-    executive: 'gpt-4o',
+    executive: 'gpt-4o-mini',
     'engagement-agenda': 'gpt-4o-mini',
     'engagement-email': 'phi-4-mini-instruct',
     'engagement-timeline': 'gpt-4o-mini',
@@ -195,11 +195,18 @@ export function getModelForTask(task: AITask): ModelType {
 export async function callAIForTask(
   task: AITask,
   prompt: string,
-  options: { expectJson?: boolean; systemPrompt?: string } = {}
+  options: { expectJson?: boolean; systemPrompt?: string; onUsage?: (metadata: AIUsageMetadata) => void } = {}
 ): Promise<string> {
   const model = getModelForTask(task)
   console.log(`[AI] Task: ${task} → Model: ${model}`)
-  return callOpenAI(prompt, model, options.expectJson ?? false, options.systemPrompt, task)
+  return callOpenAI(prompt, model, options.expectJson ?? false, options.systemPrompt, task, options.onUsage)
+}
+
+export interface AIUsageMetadata {
+  model?: string
+  deployment?: string
+  cached: boolean
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 }
 
 interface ProxyResponse {
@@ -214,9 +221,17 @@ interface ProxyResponse {
   retryable?: boolean
   correlationId?: string
   details?: string
+  model?: string
+  deployment?: string
+  cached?: boolean
 }
 
 export type AIErrorCode =
+  | 'AUTH_REQUIRED'
+  | 'INVALID_REQUEST'
+  | 'QUOTA_EXCEEDED'
+  | 'COST_CONTROL_UNAVAILABLE'
+  | 'REQUEST_IN_PROGRESS'
   | 'BACKEND_UNREACHABLE'
   | 'AI_NOT_CONFIGURED'
   | 'AI_AUTH_FAILED'
@@ -240,7 +255,7 @@ export class AIServiceError extends Error {
 }
 
 export interface AIReadiness {
-  status: 'ready' | 'unavailable'
+  status: 'configured' | 'ready' | 'unavailable'
   checkedAt: string
   provider: string
   model: string
@@ -272,15 +287,16 @@ async function callViaProxy(
   systemPrompt?: string,
   cloudEnvironment?: string,
   task: AITask = 'general'
-): Promise<string> {
+): Promise<ProxyResponse & { content: string }> {
   const requestBody: Record<string, unknown> = { prompt, model, expectJson, task }
   if (systemPrompt) requestBody.systemPrompt = systemPrompt
   if (cloudEnvironment) requestBody.cloudEnvironment = cloudEnvironment
 
-  const maxRetries = 2
+  // A timed-out inference can still be billable. Never replay it automatically.
+  const maxRetries = 0
   // Abort a stalled request so a down/slow backend surfaces an error instead of
   // hanging the UI forever (the Vite dev proxy has no timeout of its own).
-  const REQUEST_TIMEOUT_MS = 60_000
+  const REQUEST_TIMEOUT_MS = 40_000
   let lastError: Error | null = null
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -320,8 +336,8 @@ async function callViaProxy(
         const errMsg = data?.error || `API error: ${response.status}${details ? ` (${details})` : ''}`
         const providerError = new AIServiceError(
           errMsg,
-          data?.code || 'PROVIDER_ERROR',
-          data?.retryable ?? response.status >= 500,
+          data?.code || (response.status === 401 || response.status === 403 ? 'AUTH_REQUIRED' : 'PROVIDER_ERROR'),
+          false,
           data?.correlationId,
         )
         if (providerError.retryable && attempt < maxRetries) {
@@ -339,7 +355,7 @@ async function callViaProxy(
         throw new Error('Empty response from AI proxy')
       }
 
-      return data.content
+      return { ...data, content: data.content }
     } catch (error) {
       // Translate low-level fetch failures into actionable messages so the UI can
       // tell the user the backend is unreachable rather than failing mutely.
@@ -347,13 +363,13 @@ async function callViaProxy(
         lastError = new AIServiceError(
           'AI request timed out — the backend may be unavailable.',
           'PROVIDER_TIMEOUT',
-          true,
+          false,
         )
       } else if (error instanceof TypeError) {
         lastError = new AIServiceError(
           'Could not reach the AI backend. Is the Functions host running on :7071?',
           'BACKEND_UNREACHABLE',
-          true,
+          false,
         )
       } else {
         lastError = error instanceof Error ? error : new Error(String(error))
@@ -379,7 +395,8 @@ export async function callOpenAI(
   model: ModelType = 'phi-4-mini-instruct',
   expectJson: boolean = false,
   systemPrompt?: string,
-  task: AITask = 'general'
+  task: AITask = 'general',
+  onUsage?: (metadata: AIUsageMetadata) => void,
 ): Promise<string> {
   const normalizedTask = AI_TASKS.has(task) ? task : 'general'
   // Check cache first
@@ -387,7 +404,8 @@ export async function callOpenAI(
   const cached = getFromCache(cacheKey)
   if (cached) {
     cacheHits++
-    return cached
+    onUsage?.({ ...cached.metadata, cached: true, usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } })
+    return cached.content
   }
   cacheMisses++
 
@@ -396,8 +414,10 @@ export async function callOpenAI(
     const result = await callViaProxy(prompt, model, expectJson, systemPrompt, undefined, normalizedTask)
 
     // Cache the successful response
-    setCache(cacheKey, result, model)
-    return result
+    const metadata: AIUsageMetadata = { model: result.model, deployment: result.deployment, cached: result.cached ?? false, usage: result.usage }
+    setCache(cacheKey, result.content, model, metadata)
+    onUsage?.(metadata)
+    return result.content
   } catch (error) {
     console.error('AI call failed:', error)
     throw error

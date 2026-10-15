@@ -1,22 +1,21 @@
 /**
- * Seeds the karabo-knowledge-v2 index with regulatory frameworks + solution-blueprint
+ * Seeds the private Blob knowledge index with regulatory frameworks + solution-blueprint
  * archetypes so semantic lookups (LearnMorePopover, archetype inference) have grounded
  * content even before customer-specific docs are ingested.
  *
  * Run: cd api && npx tsx scripts/seed-search.ts
  *
  * Required env:
- *   AZURE_SEARCH_ENDPOINT        e.g. https://id8-search.search.windows.net
- *   AZURE_SEARCH_KEY             admin key
- *   AZURE_SEARCH_INDEX           defaults to karabo-knowledge-v2
+ *   AZURE_STORAGE_CONNECTION_STRING
  *   AZURE_OPENAI_ENDPOINT        e.g. https://karabo-ai-hub.openai.azure.com/
  *   AZURE_OPENAI_API_KEY
  *   AZURE_OPENAI_EMBEDDING_DEPLOYMENT  defaults to text-embedding-3-small
  */
-import { AzureKeyCredential, SearchClient } from '@azure/search-documents'
+import { getBlobServiceClient } from '../src/lib/storage-clients'
+import { KNOWLEDGE_CONTAINER, KNOWLEDGE_BLOB, parseKnowledgeIndex } from '../src/lib/knowledge-index'
 import { REGULATION_REGISTRY } from '../../src/lib/regulatory-engine'
 import { ARCHETYPES } from '../../src/lib/solution-blueprint/archetypes'
-import { getEmbeddingDeployment, validateEmbeddingVectors } from '../src/lib/embedding-config'
+import { EMBEDDING_DIMENSIONS, getEmbeddingDeployment, validateEmbeddingVectors } from '../src/lib/embedding-config'
 
 interface KnowledgeDoc {
   id: string
@@ -28,27 +27,23 @@ interface KnowledgeDoc {
   embedding: number[]
 }
 
-const searchEndpoint = process.env.AZURE_SEARCH_ENDPOINT
-const searchKey = process.env.AZURE_SEARCH_KEY
-const indexName = process.env.AZURE_SEARCH_INDEX || 'karabo-knowledge-v2'
 const aoaiEndpoint = process.env.AZURE_OPENAI_ENDPOINT
 const aoaiKey = process.env.AZURE_OPENAI_API_KEY
 const embedDeployment = getEmbeddingDeployment()
 const apiVersion = process.env.AZURE_OPENAI_EMBEDDING_API_VERSION || '2024-10-21'
 
-if (!searchEndpoint || !searchKey || !aoaiEndpoint || !aoaiKey) {
-  console.error('Missing required env vars. Need AZURE_SEARCH_ENDPOINT, AZURE_SEARCH_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY.')
+if (!aoaiEndpoint || !aoaiKey) {
+  console.error('Missing AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_API_KEY. Storage must also be configured.')
   process.exit(1)
 }
-
-const client = new SearchClient<KnowledgeDoc>(searchEndpoint, indexName, new AzureKeyCredential(searchKey))
 
 async function embedBatch(inputs: string[]): Promise<number[][]> {
   const url = `${aoaiEndpoint!.replace(/\/$/, '')}/openai/deployments/${embedDeployment}/embeddings?api-version=${apiVersion}`
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'api-key': aoaiKey! },
-    body: JSON.stringify({ input: inputs }),
+    body: JSON.stringify({ input: inputs, dimensions: EMBEDDING_DIMENSIONS }),
+    signal: AbortSignal.timeout(15_000),
   })
   if (!r.ok) {
     const t = await r.text()
@@ -128,14 +123,14 @@ async function main() {
     console.log('ok')
   }
 
-  console.log(`Uploading ${embedded.length} documents to ${indexName}...`)
-  const result = await client.uploadDocuments(embedded)
-  const failed = result.results.filter((r) => !r.succeeded)
-  if (failed.length) {
-    console.error(`${failed.length} failed:`)
-    failed.forEach((f) => console.error(`  ${f.key}: ${f.errorMessage}`))
-    process.exit(2)
-  }
+  const container = getBlobServiceClient().getContainerClient(KNOWLEDGE_CONTAINER)
+  await container.createIfNotExists()
+  const index = parseKnowledgeIndex({ schemaVersion: 1, dimensions: EMBEDDING_DIMENSIONS, embeddingDeployment: embedDeployment, documents: embedded })
+  const payload = JSON.stringify(index)
+  await container.getBlockBlobClient(KNOWLEDGE_BLOB).upload(payload, Buffer.byteLength(payload), {
+    conditions: process.argv.includes('--replace') ? undefined : { ifNoneMatch: '*' },
+    blobHTTPHeaders: { blobContentType: 'application/json' },
+  })
   console.log(`Done. Indexed ${embedded.length} documents.`)
 }
 
