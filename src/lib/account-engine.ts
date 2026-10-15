@@ -13,8 +13,8 @@ import type {
   AccountHealthRating,
 } from './types'
 
-const ACCOUNTS_STORAGE_KEY = 'karabo-accounts'
-const WORKLOADS_STORAGE_KEY = 'karabo-workloads'
+const ACCOUNTS_STORAGE_KEY = 'id8-accounts'
+const WORKLOADS_STORAGE_KEY = 'id8-workloads'
 
 // ============================================================================
 // PERSISTENCE

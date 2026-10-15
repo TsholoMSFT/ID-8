@@ -1,7 +1,7 @@
 targetScope = 'resourceGroup'
 
 @description('Canonical Static Web App. The managed API is deployed with the frontend.')
-param staticSiteName string = 'karabo-app'
+param staticSiteName string = 'id8-app'
 
 @description('Keep the existing Static Web App region.')
 param location string = 'eastus2'
@@ -10,7 +10,7 @@ param location string = 'eastus2'
 param storageAccountName string = 'kaaborsstorage'
 
 @description('GitHub repository containing the canonical deployment workflow.')
-param repositoryUrl string = 'https://github.com/TsholoMSFT/KARABO'
+param repositoryUrl string = 'https://github.com/TsholoMSFT/ID-8'
 
 param branch string = 'main'
 
@@ -19,7 +19,7 @@ resource site 'Microsoft.Web/staticSites@2024-04-01' = {
   location: location
   tags: {
     'azd-service-name': 'web'
-    application: 'karabo'
+    application: 'id8'
   }
   sku: {
     name: 'Free'

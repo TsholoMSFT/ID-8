@@ -20,7 +20,7 @@ function header(value: string): ExcelCell {
 
 export function exportEnterpriseDiscoveryToExcel(session: EnterpriseDiscoverySession): string {
   const summarySheet: ExcelCell[][] = [
-    [cell('Microsoft Innovation Hub - Enterprise Discovery Report', String, { fontWeight: 'bold' })],
+    [cell('ID-8 - Microsoft Innovation Hub Enterprise Discovery Report', String, { fontWeight: 'bold' })],
     [cell('', String)],
     [cell('Client Name', String), cell(session.clientName || 'Unnamed', String)],
     [cell('Session Date', String), cell(new Date(session.sessionDate).toLocaleDateString(), String)],
@@ -262,7 +262,7 @@ export function exportEnterpriseDiscoveryToExcel(session: EnterpriseDiscoverySes
 
   // Generate filename and save
   const clientSlug = (session.clientName || 'discovery').toLowerCase().replace(/\s+/g, '-').slice(0, 30)
-  const fileName = `enterprise-discovery-${clientSlug}-${new Date().toISOString().split('T')[0]}.xlsx`
+  const fileName = `ID-8-enterprise-discovery-${clientSlug}-${new Date().toISOString().split('T')[0]}.xlsx`
 
   void writeXlsxFile(data, {
     fileName,

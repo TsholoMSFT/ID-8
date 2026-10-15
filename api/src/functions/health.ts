@@ -27,6 +27,7 @@ async function healthHandler(req: HttpRequest, context: InvocationContext): Prom
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
     jsonBody: {
+      application: "ID-8",
       ok: true,
       timestamp: new Date().toISOString(),
       node: process.version,

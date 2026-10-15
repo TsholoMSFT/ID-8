@@ -42,7 +42,7 @@ async function searchSECEdgar(companyName: string, ticker?: string): Promise<Ear
 
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "KARABO Discovery Tool (Microsoft Innovation Hub)",
+        "User-Agent": "ID-8 Discovery Tool (Microsoft Innovation Hub)",
         Accept: "application/json",
       },
     });
@@ -86,7 +86,7 @@ async function searchJSESens(companyName: string, ticker?: string): Promise<Earn
 
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "KARABO Discovery Tool (Microsoft Innovation Hub)",
+        "User-Agent": "ID-8 Discovery Tool (Microsoft Innovation Hub)",
         Accept: "application/json",
       },
     });
@@ -181,7 +181,7 @@ async function searchYahooFinance(companyName: string, ticker?: string): Promise
 
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "KARABO Discovery Tool",
+        "User-Agent": "ID-8 Discovery Tool",
       },
     });
 
@@ -536,7 +536,7 @@ async function lookupTickerYahoo(companyName: string): Promise<TickerLookupResul
     
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "KARABO Discovery Tool",
+        "User-Agent": "ID-8 Discovery Tool",
       },
     });
 
@@ -718,7 +718,7 @@ async function lookupTickerOpenFIGI(name: string): Promise<TickerLookupResult[]>
 // ── Source: Wikidata (no key; multilingual; global) ──────────────────────
 async function lookupTickerWikidata(name: string): Promise<TickerLookupResult[]> {
   const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(name)}&language=en&format=json&limit=5&origin=*`;
-  const sResp = await fetch(searchUrl, { headers: { "User-Agent": "KARABO/1.0" } });
+  const sResp = await fetch(searchUrl, { headers: { "User-Agent": "ID-8/1.0" } });
   if (!sResp.ok) throw new Error(`Wikidata search ${sResp.status}`);
   const sData = (await sResp.json()) as any;
   const candidates: { qid: string; label: string }[] = (sData?.search || []).slice(0, 3).map((s: any) => ({
@@ -731,7 +731,7 @@ async function lookupTickerWikidata(name: string): Promise<TickerLookupResult[]>
   for (const c of candidates) {
     try {
       const eResp = await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${c.qid}.json`, {
-        headers: { "User-Agent": "KARABO/1.0" },
+        headers: { "User-Agent": "ID-8/1.0" },
       });
       if (!eResp.ok) continue;
       const eData = (await eResp.json()) as any;
@@ -764,7 +764,7 @@ async function lookupTickerTradingView(name: string): Promise<TickerLookupResult
   const url = `https://symbol-search.tradingview.com/symbol_search/?text=${encodeURIComponent(name)}&hl=1&lang=en&search_type=undefined`;
   const resp = await fetch(url, {
     headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; KARABO/1.0)",
+      "User-Agent": "Mozilla/5.0 (compatible; ID-8/1.0)",
       "Origin": "https://www.tradingview.com",
       "Referer": "https://www.tradingview.com/",
     },
@@ -797,7 +797,7 @@ async function lookupTickerTradingView(name: string): Promise<TickerLookupResult
 // ── Source: SEC EDGAR (US filings; no key) ───────────────────────────────
 async function lookupTickerSecEdgar(name: string): Promise<TickerLookupResult[]> {
   const url = `https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(`"${name}"`)}&forms=10-K`;
-  const resp = await fetch(url, { headers: { "User-Agent": "KARABO/1.0 contact@example.com" } });
+  const resp = await fetch(url, { headers: { "User-Agent": "ID-8/1.0 contact@example.com" } });
   if (!resp.ok) throw new Error(`SEC EDGAR ${resp.status}`);
   const data = (await resp.json()) as any;
   const hits = data?.hits?.hits || [];
@@ -827,7 +827,7 @@ async function lookupTickerSecEdgar(name: string): Promise<TickerLookupResult[]>
 async function lookupTickerStooq(name: string): Promise<TickerLookupResult[]> {
   const slug = encodeURIComponent(name.toLowerCase().trim().replace(/\s+/g, "+"));
   const url = `https://stooq.com/q/?s=${slug}`;
-  const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; KARABO/1.0)" } });
+  const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; ID-8/1.0)" } });
   if (!resp.ok) throw new Error(`Stooq ${resp.status}`);
   const html = await resp.text();
   // Stooq page title pattern: "Anglo American (AAL.UK) - Stooq" or "MSFT.US - Microsoft Corp - Stooq"

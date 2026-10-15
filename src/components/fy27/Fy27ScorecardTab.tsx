@@ -34,7 +34,7 @@ function buildScorecardText(scorecard: Fy27AlignmentScorecard): string {
     if (f.gaps.length) lines.push(`   Gaps: ${f.gaps.join('; ')}`)
   }
   lines.push('')
-  lines.push(`Generated ${new Date(scorecard.generatedAt).toLocaleDateString()} · KARABO`)
+  lines.push(`Generated ${new Date(scorecard.generatedAt).toLocaleDateString()} · ID-8`)
   return lines.join('\n')
 }
 

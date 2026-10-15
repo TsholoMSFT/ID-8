@@ -1,11 +1,11 @@
-# KARABO - Security Policy
+# ID-8 - Security Policy
 
 **Author:** Tsholo K. Setati  
 **Project:** ID-8 (Microsoft Innovation Hub Enterprise Discovery)
 
 ## Security Considerations
 
-I designed KARABO with the following security principles in mind:
+I designed ID-8 with the following security principles in mind:
 
 ### Data Privacy
 - All data is stored locally in your browser using localStorage
@@ -25,7 +25,7 @@ I designed KARABO with the following security principles in mind:
 
 ## Reporting Security Issues
 
-If you believe you have found a security vulnerability in KARABO, please report it responsibly.
+If you believe you have found a security vulnerability in ID-8, please report it responsibly.
 
 **Please do not report security vulnerabilities through public GitHub issues, discussions, or pull requests.**
 
@@ -40,7 +40,7 @@ Please include as much of the information listed below as you can to help me und
 
 ## Security Best Practices
 
-When deploying KARABO:
+When deploying ID-8:
 
 1. **Keep API keys secure** - Never commit `.env` files to source control
 2. **Use HTTPS** - Always deploy behind HTTPS in production

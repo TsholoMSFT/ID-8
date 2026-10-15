@@ -67,7 +67,7 @@ export interface SpendLedger {
   events: Array<{ at: number; action: string; model: string; tokens?: number; cached: boolean }>
 }
 
-const LEDGER_KEY = 'karabo-copilot-token-ledger-v2'
+const LEDGER_KEY = 'id8-copilot-token-ledger-v2'
 
 // ── Cost ledger (localStorage) ─────────────────────────────────────────────
 function readLedgers(): Record<string, SpendLedger> {

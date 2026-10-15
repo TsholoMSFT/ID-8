@@ -19,6 +19,7 @@ export async function exportEnterpriseDiscoveryToPDF(
   const { includeFinancials = true, includeYellowLights = true } = options
   
   const doc = new jsPDF()
+  doc.setProperties({ creator: 'ID-8', title: 'ID-8 Enterprise Discovery' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 20
@@ -696,7 +697,7 @@ export async function exportEnterpriseDiscoveryToPDF(
 
   // Save
   const clientSlug = (session.clientName || 'discovery').toLowerCase().replace(/\s+/g, '-').slice(0, 30)
-  const fileName = `enterprise-discovery-${clientSlug}-${new Date().toISOString().split('T')[0]}.pdf`
+  const fileName = `ID-8-enterprise-discovery-${clientSlug}-${new Date().toISOString().split('T')[0]}.pdf`
   doc.save(fileName)
 
   return fileName

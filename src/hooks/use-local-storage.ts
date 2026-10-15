@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
 type SetValue<T> = T | ((prevValue: T) => T)
-const LOCAL_STORAGE_CHANGE_EVENT = 'karabo:local-storage-change'
+const LOCAL_STORAGE_CHANGE_EVENT = 'id8:local-storage-change'
 
 interface LocalStorageChangeDetail<T> {
   key: string

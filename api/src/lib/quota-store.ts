@@ -123,7 +123,7 @@ let tableReady: Promise<void> | undefined;
 
 function getRepository(): QuotaRepository {
   if (repository) return repository;
-  const client: TableClient = getTableClient("karaboquotas");
+  const client: TableClient = getTableClient("id8quotas");
   async function ready(): Promise<void> {
     tableReady ??= client.createTable().then(() => undefined).catch((error: unknown) => {
       if (storageStatus(error) !== 409) {

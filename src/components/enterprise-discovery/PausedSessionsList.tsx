@@ -17,7 +17,7 @@ import { Clock, Play, Trash2, Users, Building2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import type { EnterpriseDiscoverySession } from '@/lib/types'
 
-const PAUSED_SESSIONS_KEY = 'karabo-paused-enterprise-sessions'
+const PAUSED_SESSIONS_KEY = 'id8-paused-enterprise-sessions'
 
 interface PausedSessionsListProps {
   onResume: (session: EnterpriseDiscoverySession) => void

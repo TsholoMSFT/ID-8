@@ -834,7 +834,7 @@ export function CompanyResearch({
             )}
 
             <p className="text-xs text-muted-foreground">
-              Filings are collected every 12 hours by the karabo-filings-monitor Logic App and served from blob
+              Filings are collected every 12 hours by the id8-filings-monitor Logic App and served from blob
               storage, with a live SEC EDGAR + JSE news fallback when no cache exists.
             </p>
             <AIDataDisclosure

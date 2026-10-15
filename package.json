@@ -1,5 +1,5 @@
 {
-    "name": "karabo-discovery",
+    "name": "id8-discovery",
     "private": true,
     "version": "1.0.0",
     "type": "module",
@@ -10,6 +10,7 @@
         "lint": "eslint .",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "test": "vitest run",
+        "test:handoff": "node --test scripts/build-id8-handoff.test.mjs",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
         "preview": "vite preview",

@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   try {
     await assert.rejects(reserveQuota(validationUser, { tokens: 1 }, undefined, new Date(), quotaEnv), QuotaExceededError);
   } finally {
-    await getTableClient("karaboquotas").deleteEntity("usage", `user-${createHash("sha256").update(validationUser).digest("hex")}`);
+    await getTableClient("id8quotas").deleteEntity("usage", `user-${createHash("sha256").update(validationUser).digest("hex")}`);
   }
   console.log(JSON.stringify({
     documents: index.documents.length, provider: "blob-hybrid", semanticRecallAtFive: checks.length / scenarios.length,

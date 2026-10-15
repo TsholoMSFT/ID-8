@@ -31,7 +31,7 @@ async function exchangeRatesHandler(request: HttpRequest, _context: InvocationCo
     }
 
     const url = `https://api.exchangerate.host/latest?base=${encodeURIComponent(base)}&symbols=${encodeURIComponent(symbols)}`;
-    const res = await fetch(url, { headers: { "User-Agent": "KARABO/1.0" } });
+    const res = await fetch(url, { headers: { "User-Agent": "ID-8/1.0" } });
     if (!res.ok) throw new Error(`HTTP ${res.status} from exchangerate.host`);
     const data = (await res.json()) as any;
 

@@ -108,7 +108,7 @@ export function buildTeamsSummary(input: {
   paybackMonths?: number
 }): string {
   const lines: string[] = []
-  lines.push(`**Karabo Discovery — ${input.customerName}**`)
+  lines.push(`**ID-8 Discovery — ${input.customerName}**`)
   lines.push('')
   if (input.topUseCases?.length) {
     lines.push('Top use cases:')

@@ -3,7 +3,7 @@ import { cosineSimilarity, EMBEDDING_DIMENSIONS } from "./embedding-config";
 import { getBlobServiceClient, storageStatus } from "./storage-clients";
 
 export const KNOWLEDGE_CONTAINER = "knowledge-index";
-export const KNOWLEDGE_BLOB = "karabo-knowledge.json";
+export const KNOWLEDGE_BLOB = "id8-knowledge.json";
 export const MAX_INDEX_BYTES = 32 * 1024 * 1024;
 
 const documentSchema = z.object({

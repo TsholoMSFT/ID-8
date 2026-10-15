@@ -37,8 +37,8 @@ async function main(): Promise<void> {
     return response.json();
   }
   const indexes = z.object({ value: z.array(z.object({ name: z.string() }).passthrough()) }).parse(await searchRequest("indexes"));
-  if (!indexes.value.length || indexes.value.some((index) => !index.name.startsWith("karabo-"))) {
-    throw new Error("Migration requires explicit review: Search contains no indexes or contains non-KARABO indexes. Nothing was deleted.");
+  if (!indexes.value.length || indexes.value.some((index) => !index.name.startsWith("id8-"))) {
+    throw new Error("Migration requires explicit review: Search contains no indexes or contains non-ID-8 indexes. Nothing was deleted.");
   }
   const documents: KnowledgeDoc[] = [];
   const exports: Array<{ name: string; schema: unknown; documents: unknown[]; count: number }> = [];

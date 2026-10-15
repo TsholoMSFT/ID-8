@@ -1,7 +1,7 @@
 /**
  * Engagement data provider — the integration seam.
  * ----------------------------------------------------------------------------
- * Today the only implementation (`localEngagementProvider`) aggregates KARABO's
+ * Today the only implementation (`localEngagementProvider`) aggregates ID-8's
  * OWN local data (accounts, discovery sessions, use cases, engagements) into a
  * portfolio "Hub Business Audit" rollup, optionally enriched by a CEHub /
  * Dataverse CSV export. A future Dataverse/Graph-backed provider can replace it
@@ -43,7 +43,7 @@ export interface EngagementDataProvider {
   getPortfolioRollup(input: PortfolioRollupInput): Promise<PortfolioRollup>
 }
 
-/** Pure aggregation over the supplied KARABO data (no I/O). Exported for tests. */
+/** Pure aggregation over the supplied ID-8 data (no I/O). Exported for tests. */
 export function computePortfolioRollup(input: PortfolioRollupInput): PortfolioRollup {
   const accounts = input.accounts ?? []
   const sessions = input.sessions ?? []

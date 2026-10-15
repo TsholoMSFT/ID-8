@@ -1,7 +1,7 @@
 {
   "$schema": "https://aka.ms/azure/static-web-apps-cli/schema",
   "configurations": {
-    "karabo": {
+    "id8": {
       "appLocation": ".",
       "apiLocation": "api",
       "outputLocation": "dist",

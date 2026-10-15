@@ -131,7 +131,7 @@ export interface ToolResult {
   output: string; // Foundry expects string; we serialise JSON
 }
 
-const SELF_BASE = process.env.SELF_FUNCTION_BASE_URL || ""; // e.g. https://karabo-api.azurewebsites.net
+const SELF_BASE = process.env.SELF_FUNCTION_BASE_URL || ""; // Canonical ID-8 API origin when configured.
 
 async function selfFetch(path: string, init?: RequestInit): Promise<any> {
   if (!SELF_BASE) {

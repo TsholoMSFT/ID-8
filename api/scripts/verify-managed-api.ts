@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "crypto";
 import { HttpRequest, HttpResponse, InvocationContext, type HttpHandler } from "@azure/functions";
 import { z } from "zod";
-import { managedSettings } from "./azure-admin";
+import { managedAppUrl, managedSettings } from "./azure-admin";
 import { guardHttpHandler } from "../src/lib/request-policy";
 import { getTableClient, storageStatus } from "../src/lib/storage-clients";
 
-const baseUrl = "https://wonderful-ground-05f749f0f.7.azurestaticapps.net";
+let baseUrl: string;
 const userId = `deployment-verification-${randomUUID()}`;
 const principal = Buffer.from(JSON.stringify({
   identityProvider: "aad",
@@ -50,9 +50,11 @@ async function live(route: string, method = "GET", body?: unknown): Promise<{ st
 }
 
 async function main(): Promise<void> {
+  baseUrl = await managedAppUrl();
   const settings = await managedSettings();
   for (const [name, value] of Object.entries(settings)) process.env[name] = value;
   process.env.NODE_ENV = "production";
+  delete process.env.ID8_ALLOW_ANONYMOUS_LOCAL;
   delete process.env.KARABO_ALLOW_ANONYMOUS_LOCAL;
   const { chatHandler } = await import("../src/functions/chat");
   const { searchKnowledgeHandler } = await import("../src/functions/search-knowledge");
@@ -105,7 +107,7 @@ async function main(): Promise<void> {
     }
 
     const created = await invoke(createHandler, "questionnaire", "POST", {
-      customerName: "KARABO deployment verification (synthetic)",
+      customerName: "ID-8 deployment verification (synthetic)",
       industry: "Technology",
       track: "Verification",
       questions: [{ id: "verification-question", inputType: "text" }],
@@ -141,7 +143,7 @@ async function main(): Promise<void> {
     }
     const userRow = `user-${createHash("sha256").update(`aad:${userId}`).digest("hex")}`;
     try {
-      await getTableClient("karaboquotas").deleteEntity("usage", userRow);
+      await getTableClient("id8quotas").deleteEntity("usage", userRow);
     } catch (error) {
       if (storageStatus(error) !== 404) throw error;
     }

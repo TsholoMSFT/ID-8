@@ -128,7 +128,7 @@ function FlowDiagramInner({ result, pathKind, flowLayoutKey, className }: FlowDi
       })
       const a = document.createElement('a')
       a.href = dataUrl
-      a.download = `blueprint-${pathKind}.png`
+      a.download = `ID-8-blueprint-${pathKind}.png`
       a.click()
       toast.success('PNG exported')
     } catch (e: any) {

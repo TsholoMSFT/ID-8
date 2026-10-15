@@ -1,20 +1,21 @@
 const MIGRATION_VERSION = 3
-const MARKER_KEY = `karabo:data-schema-v${MIGRATION_VERSION}`
-const BACKUP_KEY = `karabo:data-schema-v${MIGRATION_VERSION}:backup`
+const MARKER_KEY = `id8:data-schema-v${MIGRATION_VERSION}`
+const BACKUP_KEY = `id8:data-schema-v${MIGRATION_VERSION}:backup`
+const LEGACY_MARKER_KEY = `karabo:data-schema-v${MIGRATION_VERSION}`
 
 const JSON_STORAGE_KEYS = [
   'discovery-sessions',
   'use-cases',
   'enterprise-sessions',
-  'karabo-paused-enterprise-sessions-mvp',
-  'karabo-paused-enterprise-sessions',
-  'karabo-accounts',
-  'karabo-workloads',
+  'id8-paused-enterprise-sessions-mvp',
+  'id8-paused-enterprise-sessions',
+  'id8-accounts',
+  'id8-workloads',
   'opportunities',
   'csam-profiles',
   'engagements',
   'frontier-account-journeys',
-  'karabo-roadmaps',
+  'id8-roadmaps',
   'solution-blueprint-usecases',
 ] as const
 
@@ -69,6 +70,10 @@ interface MigrationBackup {
 
 export function runPersistenceMigration(storage: Storage = window.localStorage): boolean {
   if (storage.getItem(MARKER_KEY) === 'complete') return false
+  if (storage.getItem(LEGACY_MARKER_KEY) === 'complete') {
+    storage.setItem(MARKER_KEY, 'complete')
+    return false
+  }
 
   const backup: MigrationBackup = { values: {}, removedValues: {} }
   const migratedValues: Record<string, string> = {}
@@ -88,7 +93,7 @@ export function runPersistenceMigration(storage: Storage = window.localStorage):
   const customerDraftKeys: string[] = []
   for (let index = 0; index < storage.length; index += 1) {
     const key = storage.key(index)
-    if (key?.startsWith('karabo:q:')) customerDraftKeys.push(key)
+    if (key?.startsWith('id8:q:')) customerDraftKeys.push(key)
   }
   for (const key of customerDraftKeys) {
     const raw = storage.getItem(key)

@@ -2,7 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 
-const CHUNK_RELOAD_KEY = 'karabo:chunk-reloaded'
+const CHUNK_RELOAD_KEY = 'id8:chunk-reloaded'
 
 /** True when the error is a stale dynamically-imported chunk (post-deploy hash change). */
 function isChunkLoadError(error: Error | null): boolean {

@@ -1,15 +1,13 @@
 /**
- * KARABO Discovery-track live validation.
+ * ID-8 Discovery-track live validation.
  *
- * Probes the deployed Discovery endpoints across the Function App host and the
- * candidate Static Web App hosts, printing a PASS/FAIL/latency matrix. Use this
+ * Probes the explicitly selected ID-8 deployment, printing a PASS/FAIL/latency matrix. Use this
  * to (a) confirm which front door serves /api, and (b) smoke-test the Discovery
  * data pipeline (ticker lookup, company financials, company profile, RSS) end
  * to end after a deploy.
  *
- * Run:   npx tsx scripts/live-validation.ts            (probes all known bases)
- *        npx tsx scripts/live-validation.ts <baseUrl>  (probes a single base)
- *        KARABO_BASE_URL=<url> npx tsx scripts/live-validation.ts
+ * Run:   npx tsx scripts/live-validation.ts <baseUrl>
+ *        ID8_BASE_URL=<url> npx tsx scripts/live-validation.ts
  *
  * No dependencies — uses Node 18+ global fetch.
  */
@@ -27,17 +25,9 @@ interface Probe {
 
 const REQUEST_TIMEOUT_MS = 45_000;
 
-const BASES: string[] = (
-  process.argv[2]
-    ? [process.argv[2]]
-    : [
-        process.env.KARABO_BASE_URL,
-        "https://func-karabo-prod-5zsqtjm5w62gc.azurewebsites.net",
-        "https://wonderful-ground-05f749f0f.7.azurestaticapps.net",
-        "https://lemon-sky-00f79bd0f.2.azurestaticapps.net",
-        "https://gray-coast-093e4210f.6.azurestaticapps.net",
-      ]
-).filter((b): b is string => !!b);
+const selectedBase = process.argv[2] || process.env.ID8_BASE_URL;
+if (!selectedBase) throw new Error("Specify the deployed ID-8 URL as an argument or set ID8_BASE_URL.");
+const BASES = [selectedBase];
 
 const PROBES: Probe[] = [
   {
@@ -181,7 +171,7 @@ function summarize(name: string, json: any): string {
 }
 
 async function main() {
-  console.log(`\nKARABO Discovery live validation \u2014 ${new Date().toISOString()}`);
+  console.log(`\nID-8 Discovery live validation \u2014 ${new Date().toISOString()}`);
   console.log(`Probing ${BASES.length} base(s):\n${BASES.map((b) => `  - ${b}`).join("\n")}\n`);
 
   const healthy: string[] = [];

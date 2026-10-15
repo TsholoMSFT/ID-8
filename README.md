@@ -1,4 +1,6 @@
-# KARABO - ID-8 (Microsoft Innovation Hub Use Case Assessment Tool)
+# ID-8 - Microsoft Innovation Hub Use Case Assessment Tool
+
+**Live application:** [Open ID-8](https://red-field-069bdce0f.5.azurestaticapps.net/)
 
 **Author:** Tsholo K. Setati  
 **Project:** ID-8 (Microsoft Innovation Hub Enterprise Discovery)
@@ -16,8 +18,8 @@ I built this comprehensive web application to help evaluate and prioritize use c
 
 1. **Clone the repository**
 ```bash
-git clone <your-repo-url>
-cd KARABO
+git clone https://github.com/TsholoMSFT/ID-8.git
+cd ID-8
 ```
 
 2. **Install dependencies**
@@ -190,7 +192,7 @@ The built files will be in the `dist/` directory, ready to deploy to any static 
 - AWS S3 + CloudFront
 - Azure Static Web Apps
 
-**Production deployment** uses the existing `karabo-app` Free Static Web App and its managed API. The canonical GitHub workflow deploys the frontend and `api` together. The separate Flex Functions/azd deployment path has been retired.
+**Production deployment** uses the `id8-app` Free Static Web App and its managed API. The canonical GitHub workflow deploys the frontend and `api` together. The separate Flex Functions/azd deployment path has been retired.
 
 ```powershell
 npm run typecheck
@@ -200,7 +202,7 @@ npm --prefix api run build
 npm run build
 # With Azure Static Web Apps CLI available; use the existing site's token via
 # SWA_CLI_DEPLOYMENT_TOKEN, never a literal token in a command or source file.
-swa deploy karabo --api-language node --api-version 22 --env production
+swa deploy id8 --api-language node --api-version 22 --env production
 ```
 
 The [managed infrastructure template](./infra/main.bicep) describes only the Free site and references existing storage. After `az login`, `npm --prefix api run configure:managed` merges cost-control settings into the existing site without displaying keys; `npm --prefix api run knowledge:migrate` backs up and migrates the existing Search corpus. Both scripts target the configured existing subscription/resource group and require explicit operator authorization. For a new corpus, use `knowledge:seed` (it refuses to replace an index without `--replace`).

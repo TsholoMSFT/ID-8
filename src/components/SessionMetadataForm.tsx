@@ -27,7 +27,7 @@ export interface SessionMetadata {
   accountSegment?: AccountSegment // Account segment — enterprise, majors-growth, smec
   complianceEnforcement?: ComplianceEnforcement // Strict or advisory gate mode
   manualFinancials?: ManualFinancialContext // Manual financial data for non-public entities
-  userRole?: UserRole // Persona using KARABO — controls feature visibility
+  userRole?: UserRole // Persona using ID-8 — controls feature visibility
 }
 
 interface SessionMetadataFormProps {

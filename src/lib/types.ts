@@ -1551,7 +1551,7 @@ export const ENGAGEMENT_PHASE_TEMPLATES: Record<EngagementType, EngagementPhaseT
 /**
  * ATM Qualification Tier — maps to Microsoft's FY26 "Apps That Matter" initiative.
  * 
- * NOTE: This is KARABO's quantified interpretation of ATM's qualitative checklist.
+ * NOTE: This is ID-8's quantified interpretation of ATM's qualitative checklist.
  * The official ATM criteria are pass/fail; this model provides a numerical assessment 
  * to help systematically strengthen opportunities before tagging them as ATM in pipeline.
  */
@@ -2447,7 +2447,7 @@ export interface CustomerMetadata {
   innovationHubLocation: string
   solutionEngineer: string
   executiveSummary?: string
-  userRole?: UserRole              // Persona using KARABO
+  userRole?: UserRole              // Persona using ID-8
 }
 
 // ============================================================================

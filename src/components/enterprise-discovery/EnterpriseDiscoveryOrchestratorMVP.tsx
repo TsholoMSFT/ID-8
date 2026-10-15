@@ -37,7 +37,7 @@ import type {
 import { migrateToMVPSession, isMVPSession } from '@/lib/types'
 import { toast } from 'sonner'
 
-const PAUSED_SESSIONS_KEY = 'karabo-paused-enterprise-sessions-mvp'
+const PAUSED_SESSIONS_KEY = 'id8-paused-enterprise-sessions-mvp'
 
 // MVP Stage names
 const MVP_STAGE_NAMES: Record<number, string> = {

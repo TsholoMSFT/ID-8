@@ -164,7 +164,7 @@ export function BlueprintDiagram({ result, defaultPath = 'side-by-side', useCase
   const [svgB, setSvgB] = useState<string | null>(null)
 
   const slug = result.useCase.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'blueprint'
-  const flowLayoutKey = useCaseId ? `karabo:flow-layout:${useCaseId}` : undefined
+  const flowLayoutKey = useCaseId ? `id8:flow-layout:${useCaseId}` : undefined
 
   return (
     <div className="space-y-3">
@@ -189,7 +189,7 @@ export function BlueprintDiagram({ result, defaultPath = 'side-by-side', useCase
             variant="outline"
             size="sm"
             disabled={!svgA || renderer !== 'mermaid'}
-            onClick={() => svgA && downloadSvg(svgA, `${slug}-best-fit.svg`)}
+            onClick={() => svgA && downloadSvg(svgA, `ID-8-${slug}-best-fit.svg`)}
           >
             <Download className="mr-1 size-3.5" /> Path A SVG
           </Button>
@@ -197,7 +197,7 @@ export function BlueprintDiagram({ result, defaultPath = 'side-by-side', useCase
             variant="outline"
             size="sm"
             disabled={!svgB || renderer !== 'mermaid'}
-            onClick={() => svgB && downloadSvg(svgB, `${slug}-estate-optimized.svg`)}
+            onClick={() => svgB && downloadSvg(svgB, `ID-8-${slug}-estate-optimized.svg`)}
           >
             <Download className="mr-1 size-3.5" /> Path B SVG
           </Button>
@@ -209,7 +209,7 @@ export function BlueprintDiagram({ result, defaultPath = 'side-by-side', useCase
               if (!svgA) return
               try {
                 const { exportBlueprintToPDF } = await import('@/lib/diagram/blueprint-export')
-                await exportBlueprintToPDF({ result, path: 'best-fit', svg: svgA, fileName: `${slug}-best-fit.pdf` })
+                await exportBlueprintToPDF({ result, path: 'best-fit', svg: svgA, fileName: `ID-8-${slug}-best-fit.pdf` })
                 toast.success('Path A PDF exported')
               } catch (e: any) {
                 toast.error(`PDF export failed: ${e?.message ?? e}`)
@@ -226,7 +226,7 @@ export function BlueprintDiagram({ result, defaultPath = 'side-by-side', useCase
               if (!svgB) return
               try {
                 const { exportBlueprintToPDF } = await import('@/lib/diagram/blueprint-export')
-                await exportBlueprintToPDF({ result, path: 'estate-optimized', svg: svgB, fileName: `${slug}-estate-optimized.pdf` })
+                await exportBlueprintToPDF({ result, path: 'estate-optimized', svg: svgB, fileName: `ID-8-${slug}-estate-optimized.pdf` })
                 toast.success('Path B PDF exported')
               } catch (e: any) {
                 toast.error(`PDF export failed: ${e?.message ?? e}`)
@@ -240,8 +240,8 @@ export function BlueprintDiagram({ result, defaultPath = 'side-by-side', useCase
             size="sm"
             onClick={async () => {
               const { exportBlueprintToCsv } = await import('@/lib/diagram/blueprint-export')
-              exportBlueprintToCsv(result, 'best-fit', `${slug}-best-fit.csv`)
-              exportBlueprintToCsv(result, 'estate-optimized', `${slug}-estate-optimized.csv`)
+              exportBlueprintToCsv(result, 'best-fit', `ID-8-${slug}-best-fit.csv`)
+              exportBlueprintToCsv(result, 'estate-optimized', `ID-8-${slug}-estate-optimized.csv`)
               toast.success('Component CSVs exported')
             }}
           >

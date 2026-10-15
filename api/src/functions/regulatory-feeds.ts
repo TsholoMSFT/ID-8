@@ -9,7 +9,7 @@ import {
 
 /**
  * Azure Function to fetch regulatory news feeds from Blob Storage
- * Regulatory data is stored by the karabo-regulatory-monitor Logic App.
+ * Regulatory data is stored by the id8-regulatory-monitor Logic App.
  * Falls back to Google News RSS with regulatory search terms.
  */
 
@@ -67,7 +67,7 @@ async function fetchLiveRegulatoryNews(
     try {
       const response = await fetch(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; KARABO/1.0; +https://karabo.app)",
+          "User-Agent": "Mozilla/5.0 (compatible; ID-8/1.0; +https://github.com/TsholoMSFT/ID-8)",
           "Accept": "application/rss+xml, application/xml, text/xml, */*",
         },
       });
@@ -191,7 +191,7 @@ async function regulatoryFeedsHandler(
       jsonBody: {
         items: liveItems,
         source: "live",
-        message: "Live regulatory news (no cached data available). Set up karabo-regulatory-monitor Logic App for cached data.",
+        message: "Live regulatory news (no cached data available). Set up id8-regulatory-monitor Logic App for cached data.",
       },
     };
   } catch (liveErr: any) {

@@ -49,7 +49,7 @@ async function yahooQuote(ticker: string): Promise<Partial<FinancialsSnapshot> |
   try {
     const modules = "assetProfile,summaryDetail,defaultKeyStatistics,price,financialData";
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}`;
-    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 KARABO/1.0" } });
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 ID-8/1.0" } });
     if (!res.ok) return null;
     const data = (await res.json()) as any;
     const r = data?.quoteSummary?.result?.[0];
@@ -77,7 +77,7 @@ async function yahooQuote(ticker: string): Promise<Partial<FinancialsSnapshot> |
 async function secLookupCIK(ticker: string): Promise<string | null> {
   try {
     const res = await fetch("https://www.sec.gov/files/company_tickers.json", {
-      headers: { "User-Agent": "KARABO Discovery Tool (contact@karabo.app)" },
+      headers: { "User-Agent": "ID-8 Discovery Tool (Microsoft Innovation Hub)" },
     });
     if (!res.ok) return null;
     const data = (await res.json()) as any;
@@ -96,7 +96,7 @@ async function secLookupCIK(ticker: string): Promise<string | null> {
 async function secSubmissions(cik: string): Promise<Partial<FinancialsSnapshot> | null> {
   try {
     const res = await fetch(`https://data.sec.gov/submissions/CIK${cik}.json`, {
-      headers: { "User-Agent": "KARABO Discovery Tool (contact@karabo.app)" },
+      headers: { "User-Agent": "ID-8 Discovery Tool (Microsoft Innovation Hub)" },
     });
     if (!res.ok) return null;
     const data = (await res.json()) as any;

@@ -31,7 +31,7 @@ describe('persistence migration', () => {
     localStorage.setItem('duce-sessions', '{"session":{}}')
     localStorage.setItem('duce-user-mode', 'technical')
     localStorage.setItem('questionnaire-links', '[]')
-    localStorage.setItem('karabo:q:token', '{"answers":{}}')
+    localStorage.setItem('id8:q:token', '{"answers":{}}')
 
     expect(runPersistenceMigration()).toBe(true)
     expect(JSON.parse(localStorage.getItem('use-cases') || '[]')).toEqual([{ id: 'u1' }])
@@ -41,8 +41,18 @@ describe('persistence migration', () => {
     expect(localStorage.getItem('duce-sessions')).toBeNull()
     expect(localStorage.getItem('duce-user-mode')).toBeNull()
     expect(localStorage.getItem('questionnaire-links')).toBeNull()
-    expect(localStorage.getItem('karabo:q:token')).toBeNull()
+    expect(localStorage.getItem('id8:q:token')).toBeNull()
     expect(localStorage.getItem(persistenceMigrationKeys.backup)).toBeTruthy()
     expect(runPersistenceMigration()).toBe(false)
+  })
+
+  it('does not replay schema cleanup when the completed migration has the former product prefix', () => {
+    const currentData = JSON.stringify([{ id: 'u1', runCost: { totalMonthlyUSD: 15 }, expectedValue: { totalAnnualValue: 1000 } }])
+    localStorage.setItem('karabo:data-schema-v3', 'complete')
+    localStorage.setItem('use-cases', currentData)
+
+    expect(runPersistenceMigration()).toBe(false)
+    expect(localStorage.getItem(persistenceMigrationKeys.marker)).toBe('complete')
+    expect(localStorage.getItem('use-cases')).toBe(currentData)
   })
 })

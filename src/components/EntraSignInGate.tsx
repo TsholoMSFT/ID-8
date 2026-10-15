@@ -29,7 +29,7 @@ export function EntraSignInGate({ children }: { children: ReactNode }) {
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
       <section className="w-full max-w-md rounded-xl border bg-card p-8 space-y-4 text-center">
-        <h1 className="text-2xl font-semibold">KARABO</h1>
+        <h1 className="text-2xl font-semibold">ID-8</h1>
         {state === 'loading' ? <p>Checking sign-in...</p> : state === 'error' ? (
           <>
             <p role="alert">Sign-in status could not be checked. Please retry.</p>

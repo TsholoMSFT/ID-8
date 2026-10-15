@@ -1,13 +1,12 @@
-name: Deploy KARABO — Azure Static Web App
+name: Deploy ID-8
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Single canonical Static Web App for KARABO.
-#   • Target SWA :  karabo-app   (host: wonderful-ground-05f749f0f.7.azurestaticapps.net)
+# Single canonical Static Web App for ID-8.
+#   • Target SWA :  id8-app (hostname resolved from Azure after provisioning)
 #   • Resource gp:  rg-tsetati
-#   • Deploy token: secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_LEMON_SKY_00F79BD0F
-#                   (legacy secret NAME — its VALUE is karabo-app's deployment token)
+#   • Deploy token: secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ID8
 #
-# The workflow/secret names are legacy. Only karabo-app is deployed.
+# Only id8-app is deployed by this workflow.
 # The API is managed by Static Web Apps; do not deploy a separate Function App.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -40,6 +39,7 @@ jobs:
           npm ci
           npm run typecheck
           npm test
+          npm run test:handoff
           npm --prefix api ci
           npm --prefix api run typecheck:scripts
           npm --prefix api test
@@ -49,7 +49,7 @@ jobs:
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_LEMON_SKY_00F79BD0F }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ID8 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
@@ -59,6 +59,35 @@ jobs:
           skip_api_build: true # API was compiled and production dependencies prepared above
           output_location: "dist" # Built app content directory - optional
           ###### End of Repository/Build Configurations ######
+      - name: Verify the production ID-8 identity and API
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          ID8_APP_URL: ${{ vars.ID8_APP_URL }}
+        run: node scripts/check-id8-live.mjs
+
+  legacy_address_handoff:
+    needs: build_and_deploy_job
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.ID8_LEGACY_REDIRECT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    name: Publish ID-8 address handoff
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build ID-8 handoff
+        env:
+          ID8_APP_URL: ${{ vars.ID8_APP_URL }}
+        run: node scripts/build-id8-handoff.mjs
+      - name: Retire the previous API and preserve address handoff
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.ID8_LEGACY_SITE_DEPLOYMENT_TOKEN }}
+          action: upload
+          app_location: dist-legacy
+          output_location: ""
+          api_location: ""
+          skip_app_build: true
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -69,7 +98,7 @@ jobs:
         id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_LEMON_SKY_00F79BD0F }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ID8 }}
           action: "close"
           app_location: "/" # App source code path
           api_location: "api" # Managed Functions: build & deploy api/ as the SWA's API (Free-tier compatible)

@@ -2,7 +2,7 @@
  * Apps That Matter (ATM) Qualification Scoring Engine
  * 
  * Quantifies Microsoft's FY26 ATM qualitative checklist into a data-driven,
- * repeatable score using data fields KARABO already captures.
+ * repeatable score using data fields ID-8 already captures.
  * 
  * ATM defines qualifying opportunities through 5 attributes:
  * 1. Business Impact   — "Solves real business problems with measurable value"
@@ -11,7 +11,7 @@
  * 4. Multi-Pillar      — "Spanning AI (Foundry) + Apps + Data pillars"
  * 5. Repeatability     — "Built on proven blueprints and solution patterns"
  * 
- * IMPORTANT: This is KARABO's quantified interpretation. The official ATM
+ * IMPORTANT: This is ID-8's quantified interpretation. The official ATM
  * criteria are qualitative (pass/fail). This model provides numerical assessment
  * to help systematically strengthen opportunities before pipeline tagging.
  * 

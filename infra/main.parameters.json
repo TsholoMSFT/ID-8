@@ -2,10 +2,10 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "staticSiteName": { "value": "karabo-app" },
+    "staticSiteName": { "value": "id8-app" },
     "location": { "value": "eastus2" },
     "storageAccountName": { "value": "kaaborsstorage" },
-    "repositoryUrl": { "value": "https://github.com/TsholoMSFT/KARABO" },
+    "repositoryUrl": { "value": "https://github.com/TsholoMSFT/ID-8" },
     "branch": { "value": "main" }
   }
 }

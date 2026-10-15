@@ -64,7 +64,7 @@ interface PersistedState {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default function CustomerQuestionnaireApp({ token }: { token: string }) {
-  const storageKey = `karabo:q:${token}`
+  const storageKey = `id8:q:${token}`
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [config, setConfig] = useState<QuestionnaireLinkConfig | null>(null)
@@ -415,7 +415,7 @@ export default function CustomerQuestionnaireApp({ token }: { token: string }) {
 
       <footer className="border-t bg-background py-4">
         <div className="max-w-3xl mx-auto px-4 text-xs text-muted-foreground text-center">
-          Powered by KARABO · Your responses are shared only with your Microsoft engagement team.
+          Powered by ID-8 · Your responses are shared only with your Microsoft engagement team.
         </div>
       </footer>
     </div>

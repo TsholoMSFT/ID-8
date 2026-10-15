@@ -3,6 +3,7 @@ node_modules
 
 # Build outputs
 dist
+dist-legacy
 .vite
 
 # Environment files (contain secrets)

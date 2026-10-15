@@ -8,7 +8,7 @@
 const STYLE_PROMPT =
   'Microsoft modern, abstract gradient, executive presentation aesthetic, clean, professional, no text, no logos, soft lighting, depth of field'
 
-const CACHE_PREFIX = 'karabo-img-cache:v2:'
+const CACHE_PREFIX = 'id8-img-cache:v2:'
 const CACHE_BUDGET_BYTES = 5 * 1024 * 1024 // 5 MB
 
 export interface GeneratedImage {

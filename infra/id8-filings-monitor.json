@@ -2,9 +2,13 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "KARABO filings watcher Logic App. On a recurrence, calls the app's own /api/filings-feeds?live=1 endpoint (real SEC EDGAR full-text + JSE/SENS, merged & deduped) for a watchlist of companies and writes the JSON into the 'filings' blob container as '{company}-filings-<timestamp>.json', which the api/filings-feeds function serves as a warm cache (with the same live path as fallback). Hardened with exponential HTTP retry, an action timeout, and a dead-letter scope that records failures to the 'filings-errors' container. REUSES the existing 'azureblob' API connection already authorized for karabo-rss-monitor, so no new connection/secret is required."
+    "description": "ID-8 filings watcher Logic App. On a recurrence, calls the app's own /api/filings-feeds?live=1 endpoint (real SEC EDGAR full-text + JSE/SENS, merged & deduped) for a watchlist of companies and writes the JSON into the 'filings' blob container as '{company}-filings-<timestamp>.json', which the api/filings-feeds function serves as a warm cache (with the same live path as fallback). Hardened with exponential HTTP retry, an action timeout, and a dead-letter scope that records failures to the 'filings-errors' container. REUSES the existing 'azureblob' API connection already authorized for id8-rss-monitor, so no new connection/secret is required."
   },
   "parameters": {
+    "appBaseUrl": {
+      "type": "string",
+      "metadata": { "description": "Canonical ID-8 Static Web App HTTPS origin." }
+    },
     "companies": {
       "type": "array",
       "defaultValue": [
@@ -38,7 +42,7 @@
     {
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2019-05-01",
-      "name": "karabo-filings-monitor",
+      "name": "id8-filings-monitor",
       "location": "[parameters('location')]",
       "properties": {
         "state": "Enabled",
@@ -46,6 +50,7 @@
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "contentVersion": "1.0.0.0",
           "parameters": {
+            "appBaseUrl": { "type": "String" },
             "$connections": { "type": "Object", "defaultValue": {} },
             "companies": { "type": "Array", "defaultValue": [] }
           },
@@ -69,7 +74,7 @@
                       "limit": { "timeout": "PT3M" },
                       "inputs": {
                         "method": "GET",
-                        "uri": "https://wonderful-ground-05f749f0f.7.azurestaticapps.net/api/filings-feeds?company=@{encodeUriComponent(items('For_Each_Company'))}&live=1",
+                        "uri": "@{parameters('appBaseUrl')}/api/filings-feeds?company=@{encodeUriComponent(items('For_Each_Company'))}&live=1",
                         "headers": { "Accept": "application/json" },
                         "retryPolicy": { "type": "exponential", "count": 4, "interval": "PT20S", "maximumInterval": "PT1H" }
                       }
@@ -119,6 +124,7 @@
           }
         },
         "parameters": {
+          "appBaseUrl": { "value": "[parameters('appBaseUrl')]" },
           "$connections": {
             "value": {
               "azureblob": {
@@ -134,6 +140,6 @@
     }
   ],
   "outputs": {
-    "workflowName": { "type": "string", "value": "karabo-filings-monitor" }
+    "workflowName": { "type": "string", "value": "id8-filings-monitor" }
   }
 }

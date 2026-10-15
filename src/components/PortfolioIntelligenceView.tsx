@@ -19,7 +19,7 @@ import { extractThemesForEntity, extractCommitments } from '@/lib/theme-engine'
 import { gatherCompanyData } from '@/lib/company-data-service'
 import { exportPortfolioWorkbook } from '@/lib/excel-export'
 
-const STORAGE_KEY = 'karabo-pipeline-intel-v1'
+const STORAGE_KEY = 'id8-pipeline-intel-v1'
 
 function loadIntel(): Record<string, EntityIntel> {
   try {

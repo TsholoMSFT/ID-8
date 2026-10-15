@@ -33,7 +33,7 @@ import { makeCorsHeaders, safeErrorMessage, parseRSSItems, type RSSItem } from "
 const corsHeaders = makeCorsHeaders("GET, OPTIONS");
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 const SOURCE_TIMEOUT_MS = Number(process.env.PUBLIC_SECTOR_TIMEOUT_MS) || 8000;
-const UA = "KARABO Discovery Tool (research@karabo.app)";
+const UA = "ID-8 Discovery Tool (Microsoft Innovation Hub)";
 
 type SourceStatus = "ok" | "empty" | "error" | "timeout";
 
@@ -154,7 +154,7 @@ async function fetchPublicSectorNews(entity: string): Promise<RSSItem[]> {
     `minister OR "director-general" OR appointment OR corruption OR modernisation OR digital)`;
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-ZA&gl=ZA&ceid=ZA:en`;
   const xml = await fetchText(url, {
-    "User-Agent": "Mozilla/5.0 (compatible; KARABO/1.0; +https://karabo.app)",
+    "User-Agent": "Mozilla/5.0 (compatible; ID-8/1.0; +https://github.com/TsholoMSFT/ID-8)",
     Accept: "application/rss+xml, application/xml, text/xml, */*",
   });
 

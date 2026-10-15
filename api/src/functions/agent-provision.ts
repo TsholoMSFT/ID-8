@@ -19,11 +19,11 @@ import { notConfiguredBody } from "../lib/iq-credential";
 
 const corsHeaders = makeCorsHeaders("GET, POST, OPTIONS");
 const API_VERSION = "2025-05-01";
-const AGENT_NAME = "karabo-blueprint-copilot";
+const AGENT_NAME = "id8-blueprint-copilot";
 
 let cachedAgentId: string | null = null;
 
-const AGENT_INSTRUCTIONS = `You are the Blueprint Copilot for Karabo, a Microsoft Cloud Solution Architect's envisioning assistant.
+const AGENT_INSTRUCTIONS = `You are the Blueprint Copilot for ID-8, a Microsoft Cloud Solution Architect's envisioning assistant.
 
 Your job: given a customer name, an estate snapshot and grounded signals, produce:
   1. A short situational analysis

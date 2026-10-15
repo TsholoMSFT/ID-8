@@ -10,6 +10,7 @@ export type AICloudEnvironment =
 export type AIModel = "gpt-4o" | "gpt-4o-mini" | "gpt-5-nano" | "phi-4-mini-instruct";
 
 export type AIErrorCode =
+  | "MIGRATION_IN_PROGRESS"
   | "INVALID_REQUEST"
   | "QUOTA_EXCEEDED"
   | "COST_CONTROL_UNAVAILABLE"

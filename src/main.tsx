@@ -25,7 +25,7 @@ function getQuestionnaireToken(): string | null {
 // (its content-hash filename changed because a new build was deployed while this
 // tab was open). Reload once to pick up the fresh asset manifest; a sessionStorage
 // guard prevents reload loops if a chunk is genuinely missing (broken deploy).
-const CHUNK_RELOAD_KEY = 'karabo:chunk-reloaded'
+const CHUNK_RELOAD_KEY = 'id8:chunk-reloaded'
 window.addEventListener('vite:preloadError', (event) => {
   if (sessionStorage.getItem(CHUNK_RELOAD_KEY)) return
   event.preventDefault()

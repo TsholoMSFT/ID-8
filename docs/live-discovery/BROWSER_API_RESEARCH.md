@@ -5,7 +5,7 @@
 
 ## Executive Summary
 
-The Live Discovery feature in KARABO relies primarily on the **Web Speech API** for voice input functionality. My analysis shows the implementation demonstrates awareness of browser compatibility issues with clear fallback mechanisms, though there are some missing error handling scenarios and browser-specific considerations that I identified for improvement.
+The Live Discovery feature in ID-8 relies primarily on the **Web Speech API** for voice input functionality. My analysis shows the implementation demonstrates awareness of browser compatibility issues with clear fallback mechanisms, though there are some missing error handling scenarios and browser-specific considerations that I identified for improvement.
 
 ---
 

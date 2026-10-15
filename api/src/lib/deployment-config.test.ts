@@ -20,9 +20,9 @@ test("lifecycle policy is valid JSON and never expires knowledge, backups or que
 });
 
 test("managed deployment config includes the API and authentication protects catch-all API routes", () => {
-  const cli = z.object({ configurations: z.object({ karabo: z.object({ apiLocation: z.literal("api"), outputLocation: z.literal("dist") }) }) })
+  const cli = z.object({ configurations: z.object({ id8: z.object({ apiLocation: z.literal("api"), outputLocation: z.literal("dist") }) }) })
     .parse(json("swa-cli.config.json"));
-  assert.equal(cli.configurations.karabo.apiLocation, "api");
+  assert.equal(cli.configurations.id8.apiLocation, "api");
   const config = z.object({ routes: z.array(z.object({ route: z.string(), allowedRoles: z.array(z.string()).optional() })) })
     .parse(json("public", "staticwebapp.config.json"));
   assert.deepEqual(config.routes.find((route) => route.route === "/api/*")?.allowedRoles, ["authenticated"]);

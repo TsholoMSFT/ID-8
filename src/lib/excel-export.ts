@@ -148,7 +148,7 @@ export function commitmentsSheet(entities: PortfolioSeedEntity[], intelMap: Inte
 export async function exportPortfolioWorkbook(
   entities: PortfolioSeedEntity[] = PORTFOLIO_SEED,
   intelMap: IntelMap = {},
-  fileName = 'karabo-pipeline-plan.xlsx',
+  fileName = 'ID-8-pipeline-plan.xlsx',
 ): Promise<void> {
   const data: Sheet[] = [
     pipelinePlanSheet(entities, intelMap),

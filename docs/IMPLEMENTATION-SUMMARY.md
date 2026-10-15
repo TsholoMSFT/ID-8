@@ -4,7 +4,7 @@
 **Project:** ID-8 (Microsoft Innovation Hub Enterprise Discovery)
 
 ## Overview
-I successfully integrated comprehensive AI capabilities into the KARABO Use Case Assessment application using OpenAI's GPT-4o and GPT-4o-mini models via direct OpenAI API calls.
+I successfully integrated comprehensive AI capabilities into the ID-8 Use Case Assessment application using OpenAI's GPT-4o and GPT-4o-mini models via direct OpenAI API calls.
 
 ## Components Modified
 

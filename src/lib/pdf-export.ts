@@ -65,6 +65,7 @@ export async function exportToPDF(
   options: ExportOptions
 ) {
   const doc = new jsPDF()
+  doc.setProperties({ creator: 'ID-8', title: 'ID-8 Discovery Assessment' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 20
@@ -1328,7 +1329,7 @@ export async function exportToPDF(
   }
 
   const customerSlug = (options.customerMetadata?.customerName || 'assessment').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 30)
-  const fileName = `innovation-hub-${customerSlug}-${new Date().toISOString().split('T')[0]}.pdf`
+  const fileName = `ID-8-${customerSlug}-${new Date().toISOString().split('T')[0]}.pdf`
   doc.save(fileName)
 }
 
@@ -1351,6 +1352,7 @@ export interface AccountTechPlanExportOptions {
 export function exportAccountTechPlanToPDF(opts: AccountTechPlanExportOptions): void {
   const { account, sessions, useCases, workloads, totalEstimatedConsumption, maccOnTrack } = opts
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  doc.setProperties({ creator: 'ID-8', title: 'ID-8 Account Technology Plan' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 15
@@ -1564,5 +1566,5 @@ export function exportAccountTechPlanToPDF(opts: AccountTechPlanExportOptions): 
   }
 
   const slug = account.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 30)
-  doc.save(`account-tech-plan-${slug}-${new Date().toISOString().split('T')[0]}.pdf`)
+  doc.save(`ID-8-account-tech-plan-${slug}-${new Date().toISOString().split('T')[0]}.pdf`)
 }

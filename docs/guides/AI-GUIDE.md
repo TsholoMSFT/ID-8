@@ -67,7 +67,7 @@ User authentication is separate from model authentication: the application requi
 
 Public routes are limited to liveness/configuration, scheduled feed reads, questionnaire configuration by unguessable link token, and questionnaire submission. Creating questionnaires and reading submissions also require sign-in; the existing admin token is still required for submissions.
 
-For direct local Functions development only, set `KARABO_ALLOW_ANONYMOUS_LOCAL=true` in ignored local settings and configure Azurite or a development Storage account. The bypass is ignored in Azure/production. The Vite development UI skips the production sign-in gate; production builds do not.
+For direct local Functions development only, set `ID8_ALLOW_ANONYMOUS_LOCAL=true` in ignored local settings and configure Azurite or a development Storage account. The bypass is ignored in Azure/production. The Vite development UI skips the production sign-in gate; production builds do not.
 
 ## Server cost controls
 
@@ -88,9 +88,9 @@ Quota settings use `AI_*` and `AI_USER_*` prefixes; see `quota-store.ts` and `co
 
 `POST /api/search-knowledge` preserves `{ query, top?, category? }` and returns `{ items, count, vector, provider, message? }`. The provider is `blob-hybrid`.
 
-The existing private Storage account holds `knowledge-index/karabo-knowledge.json`. Each warm managed Function caches the validated index for five minutes and revalidates its ETag. Ranking combines BM25 keyword scores and cosine vector similarity with reciprocal rank fusion. Query embeddings are cached in memory for one hour. No dedicated search compute is provisioned.
+The existing private Storage account holds `knowledge-index/id8-knowledge.json`. Each warm managed Function caches the validated index for five minutes and revalidates its ETag. Ranking combines BM25 keyword scores and cosine vector similarity with reciprocal rank fusion. Query embeddings are cached in memory for one hour. No dedicated search compute is provisioned.
 
-This is suitable for KARABO's 56-document, low-traffic reference corpus, **not** an unlimited enterprise search replacement:
+This is suitable for ID-8's 56-document, low-traffic reference corpus, **not** an unlimited enterprise search replacement:
 
 | Option | Suitable use | Trade-off |
 | --- | --- | --- |
@@ -101,19 +101,29 @@ This is suitable for KARABO's 56-document, low-traffic reference corpus, **not**
 
 When embeddings are unavailable, the API logs the reason and explicitly reports keyword-only results. Missing or corrupt indexes return an error, not an empty success. Only public reference material belongs in the shared index; customer-specific corpora need tenant-scoped storage and authorization.
 
-The migration script exports every KARABO-owned source index to non-expiring `knowledge-backups/` blobs, verifies document IDs/content/metadata, regenerates non-retrievable source vectors once, and verifies the destination checksum. It does not delete Search. Preserve the backup and validate authenticated retrieval before deleting the source service.
+The migration script exports every ID-8-owned source index to non-expiring `knowledge-backups/` blobs, verifies document IDs/content/metadata, regenerates non-retrievable source vectors once, and verifies the destination checksum. It does not delete Search. Preserve the backup and validate authenticated retrieval before deleting the source service.
 
 After `az login`, `npm --prefix api run knowledge:verify` checks real Blob/vector retrieval, cache round trips and durable quota boundaries. `npm --prefix api run verify:managed` invokes the protected handlers locally with test platform identities against existing Azure dependencies and verifies the deployed gateway's anonymous rejections and public questionnaire round trip. It creates and deletes only synthetic questionnaire/submission and verification-user quota rows; it never sends fake identity headers to the live gateway. This is an operator-authorized integration check, not a completed end-to-end Entra browser login.
 
 `ai-response-cache/` expires after one day. Knowledge indexes, migration backups, questionnaires and quota rows are not subject to the 45-day feed-snapshot expiration rule. Quota counters use fixed global/per-user rows rather than creating a new row every minute.
 
-The run-cost estimator is for hypothetical customer workloads, not KARABO's Azure bill. It no longer invents $25/$75 monthly hosting fees. Users can compare Blob hybrid retrieval, and fixed Search capacity is counted once only when they explicitly assign workloads to the same platform group. Old saved estimates remain unchanged until re-saved.
+The run-cost estimator is for hypothetical customer workloads, not ID-8's Azure bill. It no longer invents $25/$75 monthly hosting fees. Users can compare Blob hybrid retrieval, and fixed Search capacity is counted once only when they explicitly assign workloads to the same platform group. Old saved estimates remain unchanged until re-saved.
 
 ### October 2026 rollout
 
-The 56-document Search corpus was backed up, migrated, and checked against real embeddings. POPIA, RAG knowledge retrieval, and document extraction scenarios each returned the expected reference at rank 1. Dedicated `id8-search`, the unused Standard `karabo` site, and the duplicate standalone Function/Flex plan were then removed after the managed deployment and verification passed.
+The 56-document Search corpus was backed up, migrated, and checked against real embeddings. POPIA, RAG knowledge retrieval, and document extraction scenarios each returned the expected reference at rank 1. Dedicated `id8-search`, the unused legacy Standard site, and the duplicate standalone Function/Flex plan were then removed after the managed deployment and verification passed.
 
-The pre-change 30-day Cost Management baseline was **R4,317.52 for the scoped KARABO resources**, of which **R4,301.34 (99.63%) was dedicated Search**. Removing that service eliminates its ongoing fixed charge; this is not a guarantee that future total spend will be zero. Shared AI-account costs and future model/storage/traffic usage are separate. Both existing storage accounts, knowledge backups, and monitoring history were retained.
+### ID-8 technical naming and address migration
+
+The canonical repository is `TsholoMSFT/ID-8`; the active Free site is `id8-app`. The browser workspace at its new Azure-generated origin starts fresh, as approved. Server-side questionnaires and research data stay in the existing private Storage account.
+
+Active app-owned identifiers use `id8` prefixes: `id8quotas`, `knowledge-index/id8-knowledge.json`, `id8-rss-monitor`, and `id8-filings-monitor`. Verified copies and migration manifests are retained in `id8-migration-backups/`; original source data and historical records are not rewritten.
+
+Operator sequence after Azure preparation/validation: provision `id8-app`, run `npm --prefix api run id8:migrate -- prepare`, publish the new deployment and legacy-address handoff, then run `npm --prefix api run id8:migrate -- activate`. The new API stays paused until old metered access is blocked, quota counters and index checksums match, and feed schedules are switched without duplication. API/model keys are transferred only between encrypted server settings and are never committed or logged.
+
+The old Free address displays ID-8 and preserves questionnaire paths when handing visitors over to the new URL. Historical resource names and a small number of explicitly labelled compatibility aliases remain only for archives, rollback, or existing local tooling. The previous completed data-schema marker is recognized so the branding change cannot replay older destructive schema cleanup.
+
+The pre-change 30-day Cost Management baseline was **R4,317.52 for the scoped ID-8 resources**, of which **R4,301.34 (99.63%) was dedicated Search**. Removing that service eliminates its ongoing fixed charge; this is not a guarantee that future total spend will be zero. Shared AI-account costs and future model/storage/traffic usage are separate. Both existing storage accounts, knowledge backups, and monitoring history were retained.
 
 ## Foundry Local Development Setup
 

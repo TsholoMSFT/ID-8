@@ -154,14 +154,14 @@ export function ExportDialog({ open, onOpenChange, onExportPDF, sessionData }: E
         threeYearBenefitUSD: sessionData.businessCase?.threeYearBenefitUSD,
         paybackMonths: sessionData.businessCase?.paybackMonths,
       }),
-      topic: `Karabo Discovery — ${sessionData.customerName}`,
+      topic: `ID-8 Discovery — ${sessionData.customerName}`,
     })
     toast.success('Opening Teams…')
   }
 
   const handleShareOutlook = () => {
     if (!sessionData) { toast.error('No session data available'); return }
-    const subject = `Karabo Discovery Readout — ${sessionData.customerName}`
+    const subject = `ID-8 Discovery Readout — ${sessionData.customerName}`
     const body = buildTeamsSummary({
       customerName: sessionData.customerName,
       topUseCases: (sessionData.useCases || []).slice(0, 5).map((u) => ({ title: u.title })),

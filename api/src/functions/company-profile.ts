@@ -26,7 +26,7 @@ const SOURCE_TIMEOUT_MS = Number(process.env.PROFILE_SOURCE_TIMEOUT_MS) || 6000;
 const COMPANIES_HOUSE_KEY = process.env.COMPANIES_HOUSE_KEY;
 const OPENCORPORATES_TOKEN = process.env.OPENCORPORATES_TOKEN;
 
-const UA = "KARABO Discovery Tool (contact@karabo.app)";
+const UA = "ID-8 Discovery Tool (Microsoft Innovation Hub)";
 
 type SourceStatus = "ok" | "empty" | "error" | "skipped" | "timeout";
 

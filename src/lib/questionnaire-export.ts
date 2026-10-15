@@ -98,9 +98,9 @@ function triggerDownload(filename: string, mime: string, content: string): void 
 }
 
 export function downloadResponsesJson(input: ResponsesExportInput): void {
-  triggerDownload(`discovery-${slugify(input.companyName)}.json`, 'application/json', buildResponsesJson(input))
+  triggerDownload(`ID-8-discovery-${slugify(input.companyName)}.json`, 'application/json', buildResponsesJson(input))
 }
 
 export function downloadResponsesMarkdown(input: ResponsesExportInput): void {
-  triggerDownload(`discovery-${slugify(input.companyName)}.md`, 'text/markdown', buildResponsesMarkdown(input))
+  triggerDownload(`ID-8-discovery-${slugify(input.companyName)}.md`, 'text/markdown', buildResponsesMarkdown(input))
 }

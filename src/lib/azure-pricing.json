@@ -1,7 +1,7 @@
 {
   "version": "2026-05",
   "currency": "USD",
-  "note": "Public list-price reference for KARABO's deterministic cost engine. Refreshed periodically. Real engagement should use Azure Pricing Calculator and EA discounts.",
+  "note": "Public list-price reference for ID-8's deterministic cost engine. Refreshed periodically. Real engagement should use Azure Pricing Calculator and EA discounts.",
   "azureOpenAI": {
     "gpt-4o":            { "inputPer1M": 2.50, "outputPer1M": 10.00 },
     "gpt-4o-mini":       { "inputPer1M": 0.15, "outputPer1M": 0.60 },

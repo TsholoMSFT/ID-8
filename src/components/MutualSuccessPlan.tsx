@@ -80,7 +80,7 @@ interface Props {
 }
 
 export function MutualSuccessPlanDialog({ customerId, customerName, trigger }: Props) {
-  const storageKey = customerId ? `karabo:mutual-success-plan:${customerId}` : 'karabo:mutual-success-plan:none'
+  const storageKey = customerId ? `id8:mutual-success-plan:${customerId}` : 'id8:mutual-success-plan:none'
   const [plan, setPlan] = useLocalStorage<MutualSuccessPlan>(storageKey, blankPlan(customerId ?? ''))
   const [open, setOpen] = useState(false)
 
@@ -401,6 +401,7 @@ function computeCompletion(p: MutualSuccessPlan): number {
 
 export function exportMutualSuccessPlanPdf(plan: MutualSuccessPlan, customerName: string) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  doc.setProperties({ creator: 'ID-8', title: 'ID-8 Mutual Success Plan' })
   const margin = 15
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -521,7 +522,7 @@ export function exportMutualSuccessPlanPdf(plan: MutualSuccessPlan, customerName
   doc.text('Microsoft lead:    _______________________________   Date: _______________', margin, y)
 
   const slug = customerName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'customer'
-  doc.save(`mutual-success-plan-${slug}.pdf`)
+  doc.save(`ID-8-mutual-success-plan-${slug}.pdf`)
 }
 
 // Re-export icon for use in launchers

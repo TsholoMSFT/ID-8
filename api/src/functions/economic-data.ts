@@ -54,7 +54,7 @@ async function worldBank(region: string, key: string): Promise<IndicatorPoint | 
   if (!ind || !country) return null;
   const url = `https://api.worldbank.org/v2/country/${country}/indicator/${ind.code}?format=json&per_page=5`;
   try {
-    const res = await fetch(url, { headers: { "User-Agent": "KARABO/1.0" } });
+    const res = await fetch(url, { headers: { "User-Agent": "ID-8/1.0" } });
     if (!res.ok) return null;
     const data = (await res.json()) as any;
     const series = Array.isArray(data) ? data[1] : null;

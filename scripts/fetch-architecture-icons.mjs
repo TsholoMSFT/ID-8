@@ -7,7 +7,7 @@
 // Brand terms: https://learn.microsoft.com/en-us/azure/architecture/icons/
 //   "Microsoft permits the use of these icons in architectural diagrams,
 //    training materials, or documentation."
-// Karabo is a Microsoft solution-blueprint tool — this is the permitted use.
+// ID-8 is a Microsoft solution-blueprint tool — this is the permitted use.
 
 import { mkdir, rm, readdir, copyFile, writeFile, stat } from 'node:fs/promises'
 import { createWriteStream, existsSync } from 'node:fs'
@@ -161,7 +161,7 @@ function scoreCandidate(rule, stem) {
 
 async function main() {
   await mkdir(TARGET, { recursive: true })
-  const work = join(tmpdir(), `karabo-icons-${Date.now()}`)
+  const work = join(tmpdir(), `id8-icons-${Date.now()}`)
   await mkdir(work, { recursive: true })
 
   const claimed = new Map() // serviceId -> chosen filename (so we keep first match)

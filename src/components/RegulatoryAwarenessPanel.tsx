@@ -5,7 +5,7 @@
  * actions, violations, and news relevant to a use case's domain + jurisdictions.
  *
  * Uses the regulatory-feeds Azure Function (which reads from the
- * karabo-regulatory-monitor Logic App blob cache, with Google News fallback).
+ * id8-regulatory-monitor Logic App blob cache, with Google News fallback).
  */
 
 import { useState, useEffect, useCallback } from 'react'

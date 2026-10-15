@@ -29,8 +29,8 @@ test("keeps only health, scheduled feeds and token-based questionnaire operation
 test("accepts Entra platform identity but rejects other providers and production dev bypass", () => {
   assert.equal(authenticatedUser(request("chat", "POST", "aad"), {}), "aad:user-1");
   assert.equal(authenticatedUser(request("chat", "POST", "github"), {}), null);
-  assert.equal(authenticatedUser(request("chat", "POST"), { KARABO_ALLOW_ANONYMOUS_LOCAL: "true", NODE_ENV: "production" }), null);
-  assert.equal(authenticatedUser(request("chat", "POST"), { KARABO_ALLOW_ANONYMOUS_LOCAL: "true" }), "local-development");
+  assert.equal(authenticatedUser(request("chat", "POST"), { ID8_ALLOW_ANONYMOUS_LOCAL: "true", NODE_ENV: "production" }), null);
+  assert.equal(authenticatedUser(request("chat", "POST"), { ID8_ALLOW_ANONYMOUS_LOCAL: "true" }), "local-development");
 });
 
 test("anonymous metered requests never reach quota storage or the provider", async () => {
@@ -65,5 +65,22 @@ test("charges metered routes consistently for case, trailing slash and percent-e
     const response = await handler(request(route, "POST", "aad"), new InvocationContext());
     assert.equal(response?.status, 200);
     assert.equal(imageCharge, 1, `Missing image reservation for ${route}`);
+  }
+});
+
+test("migration mode pauses metered work without reserving quota", async () => {
+  const previous = process.env.ID8_MIGRATION_MODE;
+  process.env.ID8_MIGRATION_MODE = "true";
+  let reserved = false;
+  let invoked = false;
+  try {
+    const handler = guardHttpHandler(async () => { invoked = true; return { status: 200 }; }, async () => { reserved = true; });
+    const result = await handler(request("chat", "POST", "aad"), new InvocationContext());
+    assert.equal(result?.status, 503);
+    assert.equal(reserved, false);
+    assert.equal(invoked, false);
+  } finally {
+    if (previous === undefined) delete process.env.ID8_MIGRATION_MODE;
+    else process.env.ID8_MIGRATION_MODE = previous;
   }
 });

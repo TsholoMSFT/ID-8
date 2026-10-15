@@ -12,7 +12,7 @@
 import Papa from 'papaparse'
 import type { InternalSalesRecord } from './types'
 
-const STORAGE_KEY = 'karabo-internal-sales-data-v1'
+const STORAGE_KEY = 'id8-internal-sales-data-v1'
 
 // ── Header tolerance ───────────────────────────────────────────────────────
 // Map a wide variety of CSV column headers (case-insensitive, normalised) to

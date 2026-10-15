@@ -21,7 +21,7 @@ import { resolveBlocker } from '@/lib/blocker-engine'
 // ── Blockers ─────────────────────────────────────────────────────────────
 
 export function useBlockers() {
-  const [blockers, setBlockers] = useLocalStorage<Blocker[]>('karabo-blockers', [])
+  const [blockers, setBlockers] = useLocalStorage<Blocker[]>('id8-blockers', [])
   const list = blockers || []
 
   const upsert = (b: Blocker) =>
@@ -52,7 +52,7 @@ export function useBlockers() {
 
 export function useSecureAIAssessments() {
   const [assessments, setAssessments] = useLocalStorage<SecureAIAssessment[]>(
-    'karabo-secure-ai-assessments',
+    'id8-secure-ai-assessments',
     [],
   )
   const list = assessments || []
@@ -103,12 +103,12 @@ export function useSecureAIAssessments() {
 
 export function useRelationships() {
   const [relationships, setRelationships] = useLocalStorage<StakeholderRelationship[]>(
-    'karabo-relationships',
+    'id8-relationships',
     [],
   )
-  const [interactions, setInteractions] = useLocalStorage<Interaction[]>('karabo-interactions', [])
+  const [interactions, setInteractions] = useLocalStorage<Interaction[]>('id8-interactions', [])
   const [personas, setPersonas] = useLocalStorage<BuyerPersona[]>(
-    'karabo-buyer-personas',
+    'id8-buyer-personas',
     DEFAULT_BUYER_PERSONAS,
   )
 
@@ -148,7 +148,7 @@ export function useRelationships() {
 // ── Roadmaps ────────────────────────────────────────────────────────────
 
 export function useRoadmaps() {
-  const [roadmaps, setRoadmaps] = useLocalStorage<TransformationRoadmap[]>('karabo-roadmaps', [])
+  const [roadmaps, setRoadmaps] = useLocalStorage<TransformationRoadmap[]>('id8-roadmaps', [])
   const list = roadmaps || []
 
   const upsert = (r: TransformationRoadmap) =>
@@ -171,7 +171,7 @@ export function useRoadmaps() {
 
 export function useConsumptionHistory() {
   const [historyByAccount, setHistoryByAccount] = useLocalStorage<Record<string, ConsumptionDataPoint[]>>(
-    'karabo-consumption-history',
+    'id8-consumption-history',
     {},
   )
   const map = historyByAccount || {}

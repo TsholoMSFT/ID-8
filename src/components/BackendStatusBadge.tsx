@@ -73,10 +73,10 @@ export function BackendStatusBadge() {
 
   useEffect(() => {
     if (prev.current === 'online' && status === 'offline') {
-      toast.warning('Karabo backend is unreachable — running in offline mode')
+      toast.warning('ID-8 backend is unreachable — running in offline mode')
     }
     if (prev.current === 'offline' && status === 'online') {
-      toast.success('Karabo backend reconnected')
+      toast.success('ID-8 backend reconnected')
     }
     prev.current = status
   }, [status])

@@ -71,7 +71,7 @@ export function BusinessCase({ useCase, context, onUpdate, onClose }: BusinessCa
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `business-case-${useCase.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.md`
+    a.download = `ID-8-business-case-${useCase.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.md`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -92,7 +92,7 @@ export function BusinessCase({ useCase, context, onUpdate, onClose }: BusinessCa
         @media print { body { margin: 0.6in; max-width: none; } }
       </style></head><body>
       <h1>Business Case — ${useCase.title}</h1>
-      <div class="meta">Generated ${generatedAt ? new Date(generatedAt).toLocaleString() : 'now'} · Karabo / ID-8</div>
+      <div class="meta">Generated ${generatedAt ? new Date(generatedAt).toLocaleString() : 'now'} · ID-8</div>
       ${html}
       <script>window.onload = () => window.print();</script>
       </body></html>`)

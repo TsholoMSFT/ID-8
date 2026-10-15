@@ -34,6 +34,7 @@ async function main(): Promise<void> {
     AI_USER_REQUESTS_PER_MINUTE: "20",
   };
   const properties: Record<string, string> = { ...current, ...additions };
+  delete properties.ID8_ALLOW_ANONYMOUS_LOCAL;
   delete properties.KARABO_ALLOW_ANONYMOUS_LOCAL;
   for (const key of Object.keys(properties)) if (key.startsWith("AZURE_SEARCH_")) delete properties[key];
   await armRequest(`${siteId}/config/appsettings?api-version=2024-04-01`, "PUT", { properties });

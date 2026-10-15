@@ -1,7 +1,7 @@
 /**
  * FY27 ATS alignment types.
  *
- * These entities close the genuine gaps between KARABO and the ATS FY27 focus
+ * These entities close the genuine gaps between ID-8 and the ATS FY27 focus
  * areas that were NOT already covered by the existing subsystems (MCEM pipeline,
  * ATM scoring, governance / regulatory / sovereign assessments, CSAM cockpit):
  *

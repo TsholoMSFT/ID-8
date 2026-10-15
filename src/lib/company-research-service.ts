@@ -476,7 +476,7 @@ export interface FetchFilingsResult {
 /**
  * Fetch recent regulatory filings (SEC EDGAR + JSE/SENS announcements) for a
  * company via /api/filings-feeds. The backend serves cached filings from blob
- * storage (populated by the karabo-filings-monitor Logic App) and falls back to
+ * storage (populated by the id8-filings-monitor Logic App) and falls back to
  * a live SEC EDGAR + JSE news query when no cache exists. Never throws on a
  * recoverable failure — returns an empty item list with a diagnostic message.
  *

@@ -11,7 +11,7 @@
  * "http://localhost:5173" (or whatever Vite serves on).
  */
 export function getAllowedOrigin(): string {
-  return process.env.ALLOWED_ORIGIN?.trim() || 'https://karabo.app'
+  return process.env.ALLOWED_ORIGIN?.trim() || 'http://localhost:5173'
 }
 
 export function makeCorsHeaders(methods = 'GET, OPTIONS'): Record<string, string> {

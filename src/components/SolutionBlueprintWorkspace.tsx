@@ -184,11 +184,11 @@ export function SolutionBlueprintWorkspace({ customers, initialCustomerId, initi
   const activeUseCase = useCases.find((u) => u.id === activeUseCaseId) ?? null
 
   // ── Blueprint Copilot (AI rail) ───────────────────────────
-  const [aiMode, setAiMode] = useLocalStorage<BlueprintAIMode>('karabo-blueprint-ai-mode', 'suggest')
+  const [aiMode, setAiMode] = useLocalStorage<BlueprintAIMode>('id8-blueprint-ai-mode', 'suggest')
   const [activeTab, setActiveTab] = useState<string>('estate')
   const [copilotRunning, setCopilotRunning] = useState(false)
   const [copilotActivity, setCopilotActivity] = useState<string | null>(null)
-  const [iqAutoPulled, setIqAutoPulled] = useLocalStorage<Record<string, number>>('karabo-iq-autopulled', {})
+  const [iqAutoPulled, setIqAutoPulled] = useLocalStorage<Record<string, number>>('id8-iq-autopulled', {})
   const [iqGroundingByCustomer, setIqGroundingByCustomer] = useState<Record<string, string>>({})
 
   // ── Seed from incoming initialUseCase (e.g., from a discovered UseCase) ──

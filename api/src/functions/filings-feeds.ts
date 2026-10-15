@@ -12,7 +12,7 @@ import {
  * Company filings watcher reader.
  *
  * Serves regulatory filings for a company from Blob Storage (written by the
- * `karabo-filings-monitor` Logic App as `{company}-filings-<timestamp>.xml`),
+ * `id8-filings-monitor` Logic App as `{company}-filings-<timestamp>.xml`),
  * and transparently falls back to **live** sources when no cached blob exists:
  *   • SEC EDGAR  — official US filings Atom feed (per company).
  *   • JSE / SENS — South-African announcements via a Google-News proxy query.
@@ -48,7 +48,7 @@ async function fetchWithTimeout(url: string, headers: Record<string, string>): P
   }
 }
 
-const SEC_UA = "KARABO-Research/1.0 (research@karabo.app)";
+const SEC_UA = "ID-8-Research/1.0 (Microsoft Innovation Hub)";
 
 /**
  * Resolve a company name to its primary SEC CIK using the EDGAR full-text entity
@@ -195,7 +195,7 @@ async function fetchJseFilings(company: string, context: InvocationContext): Pro
   let xml: string;
   try {
     xml = await fetchWithTimeout(url, {
-      "User-Agent": "Mozilla/5.0 (compatible; KARABO/1.0; +https://karabo.app)",
+      "User-Agent": "Mozilla/5.0 (compatible; ID-8/1.0; +https://github.com/TsholoMSFT/ID-8)",
       Accept: "application/rss+xml, application/xml, text/xml, */*",
     });
   } catch (e: any) {

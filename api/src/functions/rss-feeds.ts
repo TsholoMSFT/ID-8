@@ -11,7 +11,7 @@ import { getOrFetchRSS, type CacheResult } from "../lib/rss-cache";
 
 /**
  * Azure Function to fetch RSS feeds from Blob Storage
- * RSS data is stored by the karabo-rss-monitor Logic App
+ * RSS data is stored by the id8-rss-monitor Logic App
  */
 
 function getStorageConnectionString(): string | undefined {
@@ -35,7 +35,7 @@ async function fetchLiveRSS(companyName: string, context: InvocationContext): Pr
   try {
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; KARABO/1.0; +https://karabo.app)",
+        "User-Agent": "Mozilla/5.0 (compatible; ID-8/1.0; +https://github.com/TsholoMSFT/ID-8)",
         "Accept": "application/rss+xml, application/xml, text/xml, */*",
       },
       signal: controller.signal,

@@ -88,6 +88,7 @@ export async function exportBlueprintToPDF(opts: BlueprintPdfExportOptions): Pro
   const blueprint = pickBlueprint(result, path)
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+  doc.setProperties({ creator: 'ID-8', title: 'ID-8 Solution Blueprint' })
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
   const margin = 12
@@ -187,7 +188,7 @@ export async function exportBlueprintToPDF(opts: BlueprintPdfExportOptions): Pro
     doc.line(margin, y - 0.5, pageW - margin, y - 0.5)
   }
 
-  const out = fileName ?? `${slugify(result.useCase.name)}-${path}.pdf`
+  const out = fileName ?? `ID-8-${slugify(result.useCase.name)}-${path}.pdf`
   doc.save(out)
 }
 
@@ -214,7 +215,7 @@ export function exportBlueprintToCsv(result: BlueprintResult, path: BlueprintPat
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = fileName ?? `${slugify(result.useCase.name)}-${path}.csv`
+  a.download = fileName ?? `ID-8-${slugify(result.useCase.name)}-${path}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }

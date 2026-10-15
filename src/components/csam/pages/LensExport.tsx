@@ -135,7 +135,7 @@ function downloadFile(filename: string, content: string, mime: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = filename
+  a.download = filename.startsWith('ID-8-') ? filename : `ID-8-${filename}`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)

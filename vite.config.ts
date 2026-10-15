@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 import { resolve } from 'path'
 
 const projectRoot = process.env.PROJECT_ROOT || import.meta.dirname
-const apiProxyTarget = process.env.KARABO_API_PROXY_TARGET || 'http://127.0.0.1:7071'
+const apiProxyTarget = process.env.ID8_API_PROXY_TARGET || process.env.KARABO_API_PROXY_TARGET || 'http://127.0.0.1:7071'
 
 // https://vite.dev/config/
 export default defineConfig({

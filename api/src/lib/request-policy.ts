@@ -28,7 +28,7 @@ export function authenticatedUser(request: HttpRequest, env: NodeJS.ProcessEnv =
   const production = Boolean(env.WEBSITE_HOSTNAME || env.WEBSITE_INSTANCE_ID)
     || env.NODE_ENV?.toLowerCase() === "production"
     || env.AZURE_FUNCTIONS_ENVIRONMENT?.toLowerCase() === "production";
-  if (!production && env.KARABO_ALLOW_ANONYMOUS_LOCAL === "true") return "local-development";
+  if (!production && (env.ID8_ALLOW_ANONYMOUS_LOCAL ?? env.KARABO_ALLOW_ANONYMOUS_LOCAL) === "true") return "local-development";
   const user = request.user;
   return user?.type === "StaticWebApps" && user.identityProvider === "aad" && user.id
     ? `aad:${user.id}`
@@ -69,6 +69,9 @@ export function guardHttpHandler(
           correlationId,
         },
       };
+    }
+    if (process.env.ID8_MIGRATION_MODE === "true") {
+      return { status: 503, headers, jsonBody: { error: "ID-8 is completing a verified data migration. Please try again shortly.", code: "MIGRATION_IN_PROGRESS", retryable: false, correlationId } };
     }
     try {
       const route = apiRoute(request);

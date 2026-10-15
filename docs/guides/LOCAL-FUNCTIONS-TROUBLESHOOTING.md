@@ -1,4 +1,4 @@
-# Local Azure Functions Troubleshooting (KARABO)
+# Local Azure Functions Troubleshooting (ID-8)
 
 This repo uses Azure Functions Core Tools (v4) for the backend under `api/`.
 
@@ -8,9 +8,9 @@ Use the repository launcher rather than invoking the global `func` shim directly
 .\scripts\start-local-api.ps1
 ```
 
-The launcher builds the API, starts Azurite when needed, resolves Node 20/22 and Core Tools, and fails unless `/api/health` becomes reachable. Override resolution with `KARABO_NODE_EXE` and `KARABO_FUNC_EXE`.
+The launcher builds the API, starts Azurite when needed, resolves Node 20/22 and Core Tools, and fails unless `/api/health` becomes reachable. Override resolution with `ID8_NODE_EXE` and `ID8_FUNC_EXE`.
 
-On Windows ARM64, native ARM64 Core Tools can fail the Node worker handshake with `Value cannot be null. (Parameter 'provider')`. The launcher prefers portable x64 Node at `%LOCALAPPDATA%\karabo-node-x64` and x64 Core Tools at `%LOCALAPPDATA%\karabo-func-x64` when installed, allowing Windows x64 emulation to avoid the native gRPC failure.
+On Windows ARM64, native ARM64 Core Tools can fail the Node worker handshake with `Value cannot be null. (Parameter 'provider')`. The launcher prefers portable x64 Node at `%LOCALAPPDATA%\id8-node-x64` and x64 Core Tools at `%LOCALAPPDATA%\id8-func-x64` when installed. Existing pre-rename runtime directories and environment overrides remain supported so tools do not need to be reinstalled.
 
 ## Symptom: routes print, but `localhost:<port>` is not reachable
 
@@ -60,7 +60,7 @@ The frontend calls `/api/*`.
 - Production uses the managed Static Web Apps API; the old standalone Function host is retired. A Vite proxy does not supply a production Entra session. Use the deployed site in a signed-in browser, or run local Functions with the explicit development-only bypass:
 
 ```powershell
-# Set KARABO_ALLOW_ANONYMOUS_LOCAL=true in ignored api/local.settings.json.
+# Set ID8_ALLOW_ANONYMOUS_LOCAL=true in ignored api/local.settings.json.
 # Use a development Storage connection/Azurite for quota and questionnaire data.
 npm run dev
 ```

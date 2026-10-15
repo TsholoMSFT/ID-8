@@ -227,6 +227,7 @@ interface ProxyResponse {
 }
 
 export type AIErrorCode =
+  | 'MIGRATION_IN_PROGRESS'
   | 'AUTH_REQUIRED'
   | 'INVALID_REQUEST'
   | 'QUOTA_EXCEEDED'

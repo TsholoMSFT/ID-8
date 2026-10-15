@@ -24,7 +24,7 @@ const listOnly = process.argv.includes('--list')
 
 console.log('Initializing Foundry Local...')
 const manager = await FoundryLocalManager.createAsync({
-  appName: 'karabo-foundry-local',
+  appName: 'id8-foundry-local',
   logLevel: 'info',
   webServiceUrls: endpoint,
 })

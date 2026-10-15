@@ -9,6 +9,9 @@
     "scripts/configure-managed-api.ts",
     "scripts/migrate-knowledge.ts",
     "scripts/verify-knowledge.ts",
-    "scripts/verify-managed-api.ts"
+    "scripts/verify-managed-api.ts",
+    "scripts/id8-migration-utils.ts",
+    "scripts/id8-migration.test.ts",
+    "scripts/migrate-id8-resources.ts"
   ]
 }
