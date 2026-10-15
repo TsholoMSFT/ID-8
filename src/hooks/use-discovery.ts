@@ -1,5 +1,6 @@
 import { useLocalStorage } from './use-local-storage'
 import { DiscoverySession } from '@/lib/types'
+import { useCallback } from 'react'
 
 function deduplicateSessions(sessions: DiscoverySession[]): DiscoverySession[] {
   return Array.from(new Map(sessions.map((session) => [session.id, session])).values())
@@ -9,20 +10,21 @@ export function useDiscovery() {
   const [sessions, setSessions] = useLocalStorage<DiscoverySession[]>('discovery-sessions', [])
   const uniqueSessions = deduplicateSessions(sessions || [])
 
-  const addSession = (session: DiscoverySession) => {
+  const addSession = useCallback((session: DiscoverySession) => {
     setSessions((currentSessions) => {
       const current = deduplicateSessions(currentSessions || [])
       const existingIndex = current.findIndex((item) => item.id === session.id)
       if (existingIndex === -1) return [...current, session]
       return current.map((item, index) => index === existingIndex ? { ...item, ...session } : item)
     })
-  }
+  }, [setSessions])
 
-  const updateSession = (sessionId: string, updates: Partial<DiscoverySession>) => {
+  const updateSession = useCallback((sessionId: string, updates: Partial<DiscoverySession> | ((session: DiscoverySession) => Partial<DiscoverySession>)) => {
     setSessions((currentSessions) => deduplicateSessions(
-      (currentSessions || []).map((session) => session.id === sessionId ? { ...session, ...updates } : session)
+      (currentSessions || []).map((session) => session.id === sessionId
+        ? { ...session, ...(typeof updates === 'function' ? updates(session) : updates) } : session)
     ))
-  }
+  }, [setSessions])
 
   const deleteSession = (sessionId: string) => {
     setSessions((currentSessions) => deduplicateSessions(

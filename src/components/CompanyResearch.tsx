@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState, type SetStateAction } from 'react'
+import { useLocalStorage } from '@/hooks/use-local-storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -6,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { 
   MagnifyingGlass, 
   FileText, 
@@ -49,13 +51,30 @@ import {
   type PublicSectorPortal
 } from '@/lib/company-research-service'
 
+export type ResearchInsightChange =
+  | { type: 'append'; insights: CompanyInsight[] }
+  | { type: 'remove'; id: string }
+  | { type: 'clear' }
+
+const EMPTY_INSIGHTS: CompanyInsight[] = []
+
 interface CompanyResearchProps {
   companyName: string
   entityType?: EntityType
-  onInsightsChange: (insights: CompanyInsight[]) => void
-  onSummaryChange?: (summary: string) => void
+  onInsightsChange: (insights: CompanyInsight[], change?: ResearchInsightChange) => void
+  onSummaryChange?: (summary: string, sourceInsightIds?: readonly string[]) => void
   initialInsights?: CompanyInsight[]
   initialSummary?: string
+  persistenceKey?: string
+}
+
+interface ResearchDraft {
+  pastedText: string
+  sourceTitle: string
+  newsQuery: string
+  profileCountry: string
+  inputMode: string
+  onlineSource: string
 }
 
 export function CompanyResearch({ 
@@ -63,28 +82,50 @@ export function CompanyResearch({
   entityType,
   onInsightsChange,
   onSummaryChange,
-  initialInsights = [],
-  initialSummary = ''
+  initialInsights = EMPTY_INSIGHTS,
+  initialSummary = '',
+  persistenceKey,
 }: CompanyResearchProps) {
-  const [insights, setInsights] = useState<CompanyInsight[]>(initialInsights)
+  const storageKey = `company-research:${persistenceKey ?? companyName.trim().toLowerCase()}`
+  const suggestedSource = entityType === 'government' ? 'public-sector' : entityType === 'public-company' ? 'filings' : 'rss'
+  const [draft, setDraft] = useLocalStorage<ResearchDraft>(`${storageKey}:draft`, {
+    pastedText: '', sourceTitle: '', newsQuery: '', profileCountry: '', inputMode: 'online', onlineSource: suggestedSource,
+  })
+  const { pastedText, sourceTitle, newsQuery, profileCountry } = draft
+  const setPastedText = (pastedText: string) => setDraft((current) => ({ ...current, pastedText }))
+  const setSourceTitle = (sourceTitle: string) => setDraft((current) => ({ ...current, sourceTitle }))
+  const setNewsQuery = (newsQuery: string) => setDraft((current) => ({ ...current, newsQuery }))
+  const setProfileCountry = (profileCountry: string) => setDraft((current) => ({ ...current, profileCountry }))
+  const [insights, setInsightsState] = useState<CompanyInsight[]>(initialInsights)
+  const insightsRef = useRef(insights)
+  const setInsights = (update: SetStateAction<CompanyInsight[]>, change: ResearchInsightChange) => {
+    const next = typeof update === 'function' ? update(insightsRef.current) : update
+    insightsRef.current = next
+    setInsightsState(next)
+    setSummary('')
+    // Persist to the owning session even if navigation unmounted this panel.
+    onInsightsChange(next, change)
+    onSummaryChange?.('')
+  }
   const [, setSources] = useState<CompanySource[]>([])
-  const [pastedText, setPastedText] = useState('')
-  const [sourceTitle, setSourceTitle] = useState('')
   const [isExtracting, setIsExtracting] = useState(false)
+  const [operationError, setOperationError] = useState('')
+  const [showAllSources, setShowAllSources] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [summary, setSummary] = useState(initialSummary)
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
-  const [rssItems, setRssItems] = useState<RSSFeedItem[]>([])
+  const [rssItems, setRssItems] = useLocalStorage<RSSFeedItem[]>(`${storageKey}:news`, [])
   const [isLoadingRSS, setIsLoadingRSS] = useState(false)
-  const [newsQuery, setNewsQuery] = useState('')
   const [newsResults, setNewsResults] = useState<NewsSearchResultItem[]>([])
   const [isSearchingNews, setIsSearchingNews] = useState(false)
   const [newsSearchMethod, setNewsSearchMethod] = useState<'vector' | 'keyword' | undefined>()
   const [newsSearchMessage, setNewsSearchMessage] = useState('')
-  const [filingsItems, setFilingsItems] = useState<RSSFeedItem[]>([])
+  const [filingsItems, setFilingsItems] = useLocalStorage<RSSFeedItem[]>(`${storageKey}:filings`, [])
   const [isLoadingFilings, setIsLoadingFilings] = useState(false)
   const [filingsSource, setFilingsSource] = useState('')
   const [filingsMessage, setFilingsMessage] = useState('')
-  const [publicSectorItems, setPublicSectorItems] = useState<RSSFeedItem[]>([])
+  const [publicSectorItems, setPublicSectorItems] = useLocalStorage<RSSFeedItem[]>(`${storageKey}:public-sector`, [])
   const [publicSectorPortals, setPublicSectorPortals] = useState<PublicSectorPortal[]>([])
   const [isLoadingPublicSector, setIsLoadingPublicSector] = useState(false)
   const [publicSectorEntityType, setPublicSectorEntityType] = useState('')
@@ -92,13 +133,25 @@ export function CompanyResearch({
   const [profile, setProfile] = useState<CompanyProfile | null>(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
   const [profileMessage, setProfileMessage] = useState('')
-  const [profileCountry, setProfileCountry] = useState('')
   const [showAllInsights, setShowAllInsights] = useState(false)
-
-  // Update parent when insights change
   useEffect(() => {
-    onInsightsChange(insights)
-  }, [insights, onInsightsChange])
+    insightsRef.current = initialInsights
+    setInsightsState(initialInsights)
+  }, [initialInsights])
+  useEffect(() => { setSummary(initialSummary) }, [initialSummary])
+
+  const reportError = (error: unknown, fallback: string) => {
+    const message = error instanceof Error ? error.message : fallback
+    console.error(fallback, error)
+    setOperationError(message)
+    toast.error(message)
+  }
+  const hasInsights = (items: CompanyInsight[]) => {
+    if (items.length > 0) return true
+    setOperationError('No relevant insights were found. Try more detailed content or a different source.')
+    toast.info('No insights found in this content')
+    return false
+  }
 
   const handleExtractFromText = async () => {
     if (!pastedText.trim()) {
@@ -112,6 +165,7 @@ export function CompanyResearch({
     }
 
     setIsExtracting(true)
+    setOperationError('')
     try {
       const newInsights = await extractInsightsFromText(
         pastedText, 
@@ -119,6 +173,7 @@ export function CompanyResearch({
         sourceTitle || 'Pasted Content',
         entityType
       )
+      if (!hasInsights(newInsights)) return
       
       const source: CompanySource = {
         id: crypto.randomUUID(),
@@ -129,32 +184,31 @@ export function CompanyResearch({
       }
       
       setSources(prev => [...prev, source])
-      setInsights(prev => [...prev, ...newInsights])
+      setInsights(prev => [...prev, ...newInsights], { type: 'append', insights: newInsights })
       
-      setPastedText('')
-      setSourceTitle('')
       toast.success(`Extracted ${newInsights.length} insights`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to extract insights')
+      reportError(error, 'Failed to extract insights')
     } finally {
       setIsExtracting(false)
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+  const handleFileUpload = async () => {
+    const file = selectedFile
     if (!file) return
 
     if (!companyName.trim()) {
       toast.error('Please enter a company name first')
-      event.target.value = ''
       return
     }
 
     setIsExtracting(true)
+    setOperationError('')
     try {
       const content = await extractTextFromFile(file)
       const newInsights = await extractInsightsFromText(content, companyName, file.name, entityType)
+      if (!hasInsights(newInsights)) return
       
       const source: CompanySource = {
         id: crypto.randomUUID(),
@@ -166,14 +220,15 @@ export function CompanyResearch({
       }
       
       setSources(prev => [...prev, source])
-      setInsights(prev => [...prev, ...newInsights])
+      setInsights(prev => [...prev, ...newInsights], { type: 'append', insights: newInsights })
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
       
       toast.success(`Extracted ${newInsights.length} insights from ${file.name}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to process file')
+      reportError(error, 'Failed to process file')
     } finally {
       setIsExtracting(false)
-      event.target.value = ''
     }
   }
 
@@ -184,6 +239,7 @@ export function CompanyResearch({
     }
 
     setIsLoadingRSS(true)
+    setOperationError('')
     try {
       const result: FetchRSSFromBlobStorageResult = await fetchRSSFromBlobStorage('/api', companyName)
       const items = result.items
@@ -210,7 +266,7 @@ export function CompanyResearch({
         toast.success(`Loaded ${items.length} news items`)
       }
     } catch (error) {
-      toast.error('Failed to fetch RSS feeds')
+      reportError(error, 'Failed to load news')
     } finally {
       setIsLoadingRSS(false)
     }
@@ -223,6 +279,7 @@ export function CompanyResearch({
       return
     }
     setIsSearchingNews(true)
+    setOperationError('')
     try {
       const res = await searchCompanyNews(companyName, newsQuery, { k: 8 })
       setNewsResults(res.results)
@@ -232,7 +289,7 @@ export function CompanyResearch({
         toast.info(res.message || 'No matching news found')
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'News search failed')
+      reportError(error, 'News search failed')
     } finally {
       setIsSearchingNews(false)
     }
@@ -250,14 +307,15 @@ export function CompanyResearch({
     }
 
     setIsExtracting(true)
+    setOperationError('')
     try {
       const rssText = rssItemsToText(rssItems, 10)
       const newInsights = await extractInsightsFromText(rssText, companyName, 'RSS News Feed', entityType)
 
       if (newInsights.length === 0) {
-        toast.info('No insights extracted from RSS items', {
-          description: 'RSS data loaded successfully, but the AI extraction returned no insights. Check that /api/chat is configured and returning valid JSON for extraction tasks.',
-        })
+        setOperationError('No relevant insights were found. Try different news sources or paste more detailed content.')
+        toast.info('No insights found in these news items')
+        return
       }
       
       const source: CompanySource = {
@@ -269,11 +327,11 @@ export function CompanyResearch({
       }
       
       setSources(prev => [...prev, source])
-      setInsights(prev => [...prev, ...newInsights])
+      setInsights(prev => [...prev, ...newInsights], { type: 'append', insights: newInsights })
       
       toast.success(`Extracted ${newInsights.length} insights from RSS`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to extract from RSS')
+      reportError(error, 'Failed to analyze news')
     } finally {
       setIsExtracting(false)
     }
@@ -286,6 +344,7 @@ export function CompanyResearch({
     }
 
     setIsLoadingFilings(true)
+    setOperationError('')
     try {
       const result: FetchFilingsResult = await fetchCompanyFilings(companyName)
       setFilingsItems(result.items)
@@ -298,7 +357,7 @@ export function CompanyResearch({
         toast.success(`Loaded ${result.items.length} filings`)
       }
     } catch (error) {
-      toast.error('Failed to fetch filings')
+      reportError(error, 'Failed to load filings')
     } finally {
       setIsLoadingFilings(false)
     }
@@ -316,14 +375,15 @@ export function CompanyResearch({
     }
 
     setIsExtracting(true)
+    setOperationError('')
     try {
       const filingsText = rssItemsToText(filingsItems, 12)
       const newInsights = await extractInsightsFromText(filingsText, companyName, 'Regulatory Filings', entityType)
 
       if (newInsights.length === 0) {
-        toast.info('No insights extracted from filings', {
-          description: 'Filings loaded successfully, but the AI extraction returned no insights. Check that /api/chat is configured.',
-        })
+        setOperationError('No relevant insights were found in these filings. Try another source or upload a full report.')
+        toast.info('No insights found in these filings')
+        return
       }
 
       const source: CompanySource = {
@@ -335,11 +395,11 @@ export function CompanyResearch({
       }
 
       setSources(prev => [...prev, source])
-      setInsights(prev => [...prev, ...newInsights])
+      setInsights(prev => [...prev, ...newInsights], { type: 'append', insights: newInsights })
 
       toast.success(`Extracted ${newInsights.length} insights from filings`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to extract from filings')
+      reportError(error, 'Failed to analyze filings')
     } finally {
       setIsExtracting(false)
     }
@@ -352,6 +412,7 @@ export function CompanyResearch({
     }
 
     setIsLoadingPublicSector(true)
+    setOperationError('')
     try {
       const result: FetchPublicSectorResult = await fetchPublicSectorSignals(companyName)
       setPublicSectorItems(result.items)
@@ -365,7 +426,7 @@ export function CompanyResearch({
         toast.success(`Loaded ${result.items.length} public-sector signals`)
       }
     } catch (error) {
-      toast.error('Failed to fetch public-sector intelligence')
+      reportError(error, 'Failed to load public-sector sources')
     } finally {
       setIsLoadingPublicSector(false)
     }
@@ -383,14 +444,15 @@ export function CompanyResearch({
     }
 
     setIsExtracting(true)
+    setOperationError('')
     try {
       const text = rssItemsToText(publicSectorItems, 12)
       const newInsights = await extractInsightsFromText(text, companyName, 'Public Sector Intelligence', entityType)
 
       if (newInsights.length === 0) {
-        toast.info('No insights extracted from public-sector signals', {
-          description: 'Signals loaded successfully, but the AI extraction returned no insights. Check that /api/chat is configured.',
-        })
+        setOperationError('No relevant insights were found. Try another public-sector source or upload a report.')
+        toast.info('No insights found in these public-sector sources')
+        return
       }
 
       const source: CompanySource = {
@@ -402,11 +464,11 @@ export function CompanyResearch({
       }
 
       setSources(prev => [...prev, source])
-      setInsights(prev => [...prev, ...newInsights])
+      setInsights(prev => [...prev, ...newInsights], { type: 'append', insights: newInsights })
 
       toast.success(`Extracted ${newInsights.length} insights from public-sector intelligence`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to extract from public-sector signals')
+      reportError(error, 'Failed to analyze public-sector sources')
     } finally {
       setIsExtracting(false)
     }
@@ -418,6 +480,7 @@ export function CompanyResearch({
       return
     }
     setIsLoadingProfile(true)
+    setOperationError('')
     setProfileMessage('')
     try {
       const { profile: resolved, message } = await fetchCompanyProfile(companyName, {
@@ -433,7 +496,7 @@ export function CompanyResearch({
       }
     } catch (error) {
       setProfileMessage(error instanceof Error ? error.message : 'Failed to fetch company profile')
-      toast.error('Failed to fetch company profile')
+      reportError(error, 'Failed to load company profile')
     } finally {
       setIsLoadingProfile(false)
     }
@@ -442,9 +505,11 @@ export function CompanyResearch({
   const handleExtractFromProfile = async () => {
     if (!profile) return
     setIsExtracting(true)
+    setOperationError('')
     try {
       const profileText = companyProfileToText(profile)
       const newInsights = await extractInsightsFromText(profileText, companyName, 'Company Profile', entityType)
+      if (!hasInsights(newInsights)) return
 
       const source: CompanySource = {
         id: crypto.randomUUID(),
@@ -455,10 +520,10 @@ export function CompanyResearch({
       }
 
       setSources(prev => [...prev, source])
-      setInsights(prev => [...prev, ...newInsights])
+      setInsights(prev => [...prev, ...newInsights], { type: 'append', insights: newInsights })
       toast.success(`Extracted ${newInsights.length} insights from profile`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to extract from profile')
+      reportError(error, 'Failed to analyze company profile')
     } finally {
       setIsExtracting(false)
     }
@@ -471,32 +536,32 @@ export function CompanyResearch({
     }
 
     setIsGeneratingSummary(true)
+    setOperationError('')
     try {
       const result = await generateResearchSummary(companyName, insights)
       setSummary(result)
-      onSummaryChange?.(result)
+      onSummaryChange?.(result, insights.map((insight) => insight.id))
     } catch (error) {
-      toast.error('Failed to generate summary')
+      reportError(error, 'Failed to generate summary')
     } finally {
       setIsGeneratingSummary(false)
     }
   }
 
   const removeInsight = (id: string) => {
-    setInsights(prev => prev.filter(i => i.id !== id))
+    setInsights(prev => prev.filter(i => i.id !== id), { type: 'remove', id })
   }
 
   const clearAllInsights = () => {
-    setInsights([])
+    setInsights([], { type: 'clear' })
     setSources([])
-    setSummary('')
     toast.success('Cleared all research data')
   }
 
   const displayedInsights = showAllInsights ? insights : insights.slice(0, 5)
 
   return (
-    <Card className="mb-6">
+    <Card className="mb-6" aria-busy={isExtracting || isGeneratingSummary}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -504,18 +569,31 @@ export function CompanyResearch({
             <CardTitle>Company Research</CardTitle>
           </div>
           {insights.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={clearAllInsights} className="text-muted-foreground">
-              <Trash size={16} className="mr-1" /> Clear All
-            </Button>
+            <AlertDialog>
+            <AlertDialogTrigger asChild><Button variant="ghost" size="sm" disabled={isExtracting || isGeneratingSummary} className="text-muted-foreground">
+              <Trash size={16} className="mr-1" /> Clear insights
+            </Button></AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader><AlertDialogTitle>Clear these research insights?</AlertDialogTitle><AlertDialogDescription>This removes the insights and generated summary from this research session. Your source drafts are kept.</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogFooter><AlertDialogCancel>Keep insights</AlertDialogCancel><AlertDialogAction onClick={clearAllInsights}>Clear insights</AlertDialogAction></AlertDialogFooter>
+            </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
         <CardDescription>
-          Add company information to enhance discovery insights
+          Choose a source, review the content, then analyze it to collect evidence
           {companyName && <span className="font-medium"> for {companyName}</span>}
         </CardDescription>
       </CardHeader>
       
       <CardContent>
+        {operationError && <div role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+          <p className="font-medium text-destructive">{operationError}</p>
+          <p className="mt-1 text-muted-foreground">Your inputs are still here. Review the source before trying again; AI requests are never retried automatically.</p>
+        </div>}
+        {(isExtracting || isGeneratingSummary) && <p role="status" aria-live="polite" className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <SpinnerGap size={16} className="animate-spin" />{isGeneratingSummary ? 'Creating a summary of your insights...' : 'Analyzing your selected content. Insights will appear below...'}
+        </p>}
         {entityType && entityType !== 'public-company' && (
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
             <Buildings size={14} className="mt-0.5 flex-shrink-0 text-primary" />
@@ -526,25 +604,16 @@ export function CompanyResearch({
             </span>
           </div>
         )}
-        <Tabs defaultValue="paste" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="paste" className="gap-2">
-              <FileText size={16} /> Paste Text
+        <Tabs value={draft.inputMode} onValueChange={(inputMode) => setDraft((current) => ({ ...current, inputMode }))} className="w-full">
+          <TabsList className="grid h-auto w-full grid-cols-3">
+            <TabsTrigger value="online" className="flex-col gap-1 whitespace-normal px-2 py-2 text-xs sm:flex-row sm:gap-2 sm:text-sm">
+              <MagnifyingGlass size={16} className="shrink-0" />Online sources
             </TabsTrigger>
-            <TabsTrigger value="upload" className="gap-2">
-              <Upload size={16} /> Upload
+            <TabsTrigger value="upload" className="flex-col gap-1 whitespace-normal px-2 py-2 text-xs sm:flex-row sm:gap-2 sm:text-sm">
+              <Upload size={16} className="shrink-0" />Documents
             </TabsTrigger>
-            <TabsTrigger value="rss" className="gap-2">
-              <Rss size={16} /> RSS Feeds
-            </TabsTrigger>
-            <TabsTrigger value="filings" className="gap-2">
-              <Bank size={16} /> Filings
-            </TabsTrigger>
-            <TabsTrigger value="public-sector" className="gap-2">
-              <Scales size={16} /> Public Sector
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="gap-2">
-              <Buildings size={16} /> Profile
+            <TabsTrigger value="paste" className="flex-col gap-1 whitespace-normal px-2 py-2 text-xs sm:flex-row sm:gap-2 sm:text-sm">
+              <FileText size={16} className="shrink-0" />Paste text
             </TabsTrigger>
           </TabsList>
 
@@ -582,7 +651,7 @@ export function CompanyResearch({
               ) : (
                 <>
                   <Lightbulb size={16} />
-                  Extract Insights
+                  Analyze text
                 </>
               )}
             </Button>
@@ -598,15 +667,17 @@ export function CompanyResearch({
             <div className="border-2 border-dashed rounded-lg p-8 text-center">
               <Upload size={32} className="mx-auto mb-2 text-muted-foreground" />
               <p className="text-sm text-muted-foreground mb-1">
-                Upload a document to extract insights
+                Choose a document, then select Analyze document
               </p>
               <p className="text-xs text-muted-foreground mb-4">
                 Word (.docx), Excel (.xlsx), PDF, text (.txt, .md, .csv, .json) and images
               </p>
               <input
                 type="file"
+                ref={fileInputRef}
                 accept=".txt,.md,.csv,.json,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.gif,.tiff,.bmp"
-                onChange={handleFileUpload}
+                onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                aria-label="Choose a research document"
                 className="hidden"
                 id="file-upload"
                 disabled={isExtracting}
@@ -616,6 +687,10 @@ export function CompanyResearch({
                   {isExtracting ? 'Processing...' : 'Choose File'}
                 </label>
               </Button>
+              {selectedFile && <div className="mt-4 space-y-3">
+                <p className="break-words text-sm">{selectedFile.name}</p>
+                <Button onClick={handleFileUpload} disabled={isExtracting || !companyName.trim()} className="gap-2"><Lightbulb size={16} />Analyze document</Button>
+              </div>}
               <p className="text-xs text-muted-foreground mt-4">
                 Word, Excel and text-based PDFs are parsed in your browser. Scanned PDFs and
                 images are read with Azure Document Intelligence. Max 10&nbsp;MB per file.
@@ -626,12 +701,30 @@ export function CompanyResearch({
             </div>
           </TabsContent>
 
+          <TabsContent value="online" className="mt-4 space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">Find relevant sources for this organization.</p>
+            <Button size="sm" variant="ghost" onClick={() => {
+              if (showAllSources && ((draft.onlineSource === 'public-sector' && entityType !== 'government') || (draft.onlineSource === 'filings' && entityType !== 'public-company'))) {
+                setDraft((current) => ({ ...current, onlineSource: suggestedSource }))
+              }
+              setShowAllSources((current) => !current)
+            }}>{showAllSources ? 'Show relevant sources' : 'More source types'}</Button>
+          </div>
+          <Tabs value={draft.onlineSource} onValueChange={(onlineSource) => setDraft((current) => ({ ...current, onlineSource }))}>
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+              <TabsTrigger value="rss" className="gap-2"><Rss size={16} />News</TabsTrigger>
+              {(entityType === 'public-company' || showAllSources || draft.onlineSource === 'filings') && <TabsTrigger value="filings" className="gap-2"><Bank size={16} />Filings</TabsTrigger>}
+              {(entityType === 'government' || showAllSources || draft.onlineSource === 'public-sector') && <TabsTrigger value="public-sector" className="gap-2"><Scales size={16} />Public sector</TabsTrigger>}
+              <TabsTrigger value="profile" className="gap-2"><Buildings size={16} />Profile</TabsTrigger>
+            </TabsList>
+
           {/* RSS Tab */}
           <TabsContent value="rss" className="space-y-4 mt-4">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Fetch news from RSS feeds configured in Azure Logic Apps
+                  Load recent news about this customer.
                 </p>
                 <Button 
                   variant="outline" 
@@ -644,7 +737,7 @@ export function CompanyResearch({
                   ) : (
                     <ArrowsClockwise size={14} className="mr-1" />
                   )}
-                  Fetch RSS
+                  Load news
                 </Button>
               </div>
 
@@ -710,8 +803,8 @@ export function CompanyResearch({
               {/* RSS Items Preview */}
               {rssItems.length > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">{rssItems.length} news items</p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm font-medium">{rssItems.length} news items loaded <span className="block text-xs font-normal text-muted-foreground">The first {Math.min(rssItems.length, 10)} will be analyzed.</span></p>
                     <Button 
                       size="sm" 
                       onClick={handleExtractFromRSS}
@@ -722,7 +815,7 @@ export function CompanyResearch({
                       ) : (
                         <Lightbulb size={14} className="mr-1" />
                       )}
-                      Extract Insights
+                      Analyze {Math.min(rssItems.length, 10)} news items
                     </Button>
                   </div>
                   <div className="max-h-48 overflow-y-auto space-y-2">
@@ -773,22 +866,22 @@ export function CompanyResearch({
                   ) : (
                     <ArrowsClockwise size={14} className="mr-1" />
                   )}
-                  Fetch filings
+                  Load filings
                 </Button>
               </div>
             </div>
 
             {filingsItems.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{filingsItems.length} filing items</p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{filingsItems.length} filings loaded <span className="block text-xs font-normal text-muted-foreground">The first {Math.min(filingsItems.length, 12)} will be analyzed.</span></p>
                   <Button size="sm" onClick={handleExtractFromFilings} disabled={isExtracting || !companyName.trim()}>
                     {isExtracting ? (
                       <SpinnerGap size={14} className="animate-spin mr-1" />
                     ) : (
                       <Lightbulb size={14} className="mr-1" />
                     )}
-                    Extract Insights
+                    Analyze {Math.min(filingsItems.length, 12)} filings
                   </Button>
                 </div>
                 <div className="max-h-72 overflow-y-auto space-y-2">
@@ -833,10 +926,13 @@ export function CompanyResearch({
               </div>
             )}
 
-            <p className="text-xs text-muted-foreground">
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer">Source and update details</summary>
+              <p className="mt-2">
               Filings are collected every 12 hours by the id8-filings-monitor Logic App and served from blob
               storage, with a live SEC EDGAR + JSE news fallback when no cache exists.
-            </p>
+              </p>
+            </details>
             <AIDataDisclosure
               fields={['company name']}
               model="gpt-4o-mini"
@@ -867,15 +963,15 @@ export function CompanyResearch({
 
             {publicSectorItems.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{publicSectorItems.length} signals</p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{publicSectorItems.length} signals loaded <span className="block text-xs font-normal text-muted-foreground">The first {Math.min(publicSectorItems.length, 12)} will be analyzed.</span></p>
                   <Button size="sm" onClick={handleExtractFromPublicSector} disabled={isExtracting || !companyName.trim()}>
                     {isExtracting ? (
                       <SpinnerGap size={14} className="animate-spin mr-1" />
                     ) : (
                       <Lightbulb size={14} className="mr-1" />
                     )}
-                    Extract Insights
+                    Analyze {Math.min(publicSectorItems.length, 12)} signals
                   </Button>
                 </div>
                 <div className="max-h-72 overflow-y-auto space-y-2">
@@ -1043,7 +1139,7 @@ export function CompanyResearch({
                 )}
                 <Button onClick={handleExtractFromProfile} disabled={isExtracting} size="sm" className="gap-2">
                   {isExtracting ? <SpinnerGap size={14} className="animate-spin" /> : <Lightbulb size={14} />}
-                  Extract insights from profile
+                  Analyze profile
                 </Button>
               </div>
             )}
@@ -1053,7 +1149,10 @@ export function CompanyResearch({
               note="The company name is sent to free registry/identity sources; the resolved profile is then summarised by AI into insights."
             />
           </TabsContent>
+          </Tabs>
+          </TabsContent>
         </Tabs>
+        <p className="mt-4 text-xs text-muted-foreground">Text drafts and loaded feeds stay in this browser. Choose a document again after a refresh. AI and document analysis run only when you select Analyze or Generate Summary.</p>
 
         {/* Insights Display */}
         {insights.length > 0 && (
@@ -1153,7 +1252,7 @@ export function CompanyResearch({
           <div className="mt-6 text-center py-8 text-muted-foreground">
             <MagnifyingGlass size={32} className="mx-auto mb-2 opacity-50" />
             <p className="text-sm">No research insights yet</p>
-            <p className="text-xs">Paste content, upload files, or fetch RSS to get started</p>
+            <p className="text-xs">Load an online source, choose a document, or paste text to get started.</p>
           </div>
         )}
       </CardContent>

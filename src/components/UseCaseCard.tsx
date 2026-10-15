@@ -4,6 +4,7 @@ import { businessFunctionLabel } from '@/lib/business-functions'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,7 +16,7 @@ import { calculateATMScore } from '@/lib/atm-scoring'
 import { summarizeBant } from '@/lib/qualification'
 import { ATMBadge } from '@/components/ATMBadge'
 import ArchitectureLayerDiagram from '@/components/ArchitectureLayerDiagram'
-import { PencilSimple, Trash, Sparkle, Info, ShieldCheck, Scales, CaretDown, CaretUp, Calculator, TrendUp, CurrencyDollar, Target, TreeStructure, Cube, Robot, Gauge, Warning, Lightning, Clock, Users, ArrowRight, CheckCircle, Question, Pause, Prohibit, X, FileText } from '@phosphor-icons/react'
+import { PencilSimple, Trash, Sparkle, Info, ShieldCheck, Scales, CaretDown, CaretUp, Calculator, TrendUp, CurrencyDollar, Target, TreeStructure, Cube, Robot, Gauge, Warning, Lightning, Clock, Users, ArrowRight, CheckCircle, Question, X, FileText } from '@phosphor-icons/react'
 import { calculateRICEScore, getQuadrant } from '@/lib/scoring'
 import { getKPIById, KPI_CATEGORIES } from '@/lib/kpis'
 import { REGULATION_LABELS, RISK_LEVEL_LABELS, SECURITY_REQUIREMENT_LABELS, DATA_CLASSIFICATION_LABELS } from '@/lib/compliance-labels'
@@ -82,10 +83,6 @@ export function UseCaseCard({
   }
   const disposition = useCase.disposition ?? 'pursue'
   const problemConfirmed = !!useCase.problemConfirmed
-  const cycleDisposition = () => {
-    const next = disposition === 'pursue' ? 'defer' : disposition === 'defer' ? 'no-go' : 'pursue'
-    onUpdate({ ...useCase, disposition: next })
-  }
   const confirmProblem = () => {
     onUpdate({ ...useCase, problemStatement: problemDraft.trim(), problemConfirmed: true })
     setShowProblemEditor(false)
@@ -197,8 +194,8 @@ export function UseCaseCard({
             }`}
             style={{ backgroundColor: 'transparent' }}
           >
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div className="flex-1">
+        <div className="mb-4 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-2">
               {isTopPick && rank && (
                 <motion.div
@@ -218,7 +215,7 @@ export function UseCaseCard({
                   </Badge>
                 </motion.div>
               )}
-              <h3 className="text-lg font-semibold text-foreground">{useCase.title}</h3>
+              <h3 className="break-words text-lg font-semibold text-foreground">{useCase.title}</h3>
             </div>
             {useCase.description && (
               <p className="text-sm text-muted-foreground leading-relaxed">{useCase.description}</p>
@@ -315,91 +312,31 @@ export function UseCaseCard({
               </div>
             )}
           </div>
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`h-8 px-2 gap-1 text-xs ${
-                    disposition === 'pursue'
-                      ? 'text-emerald-600 hover:text-emerald-700'
-                      : disposition === 'defer'
-                        ? 'text-amber-600 hover:text-amber-700'
-                        : 'text-rose-600 hover:text-rose-700'
-                  }`}
-                  onClick={cycleDisposition}
-                  aria-label={`Disposition: ${disposition === 'no-go' ? 'No-Go' : disposition[0].toUpperCase() + disposition.slice(1)}. Click to change.`}
-                >
-                  {disposition === 'pursue' && <CheckCircle size={14} weight="fill" />}
-                  {disposition === 'defer' && <Pause size={14} weight="fill" />}
-                  {disposition === 'no-go' && <Prohibit size={14} weight="fill" />}
-                  <span className="capitalize">{disposition === 'no-go' ? 'No-Go' : disposition}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Click to cycle disposition (Pursue → Defer → No-Go)</TooltipContent>
-            </Tooltip>
-            {onGenerateBlueprint && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (!problemConfirmed) {
-                          setShowProblemEditor(true)
-                          return
-                        }
-                        onGenerateBlueprint(useCase)
-                      }}
-                      disabled={disposition === 'no-go'}
-                      className={!problemConfirmed ? 'text-amber-600' : ''}
-                      aria-label={
-                        disposition === 'no-go'
-                          ? 'Draft solution (disabled — disposition is No-Go)'
-                          : problemConfirmed
-                            ? 'Draft solution blueprint'
-                            : 'Confirm problem statement before drafting solution'
-                      }
-                    >
-                      {problemConfirmed ? <TreeStructure size={18} /> : <Question size={18} />}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {disposition === 'no-go'
-                    ? 'Marked No-Go — change disposition to draft a solution'
-                    : problemConfirmed
-                      ? 'Draft solution to discuss'
-                      : 'Confirm problem statement first (move off the solution)'}
-                </TooltipContent>
-              </Tooltip>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowCostBreakdown(v => !v)}
-              aria-label={showCostBreakdown ? 'Hide run-cost estimate' : 'Show run-cost estimate'}
-              className={useCase.runCost ? 'text-emerald-600' : ''}
-            >
-              <CurrencyDollar size={18} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowBusinessCase(v => !v)}
-              aria-label={showBusinessCase ? 'Hide business case' : 'View business case'}
-              className={useCase.businessCase ? 'text-primary' : ''}
-            >
-              <FileText size={18} />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => onEdit(useCase)} aria-label={`Edit use case: ${useCase.title}`}>
-              <PencilSimple size={18} />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => onDelete(useCase.id)} aria-label={`Delete use case: ${useCase.title}`}>
-              <Trash size={18} />
-            </Button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Badge variant="outline" className="capitalize">{disposition === 'no-go' ? 'No-go' : disposition}</Badge>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="sm" aria-label={`Actions for ${useCase.title}`}>Actions</Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => onEdit(useCase)}><PencilSimple size={16} />Edit use case</DropdownMenuItem>
+                {onGenerateBlueprint && <DropdownMenuItem disabled={disposition === 'no-go'} onSelect={() => {
+                  if (!problemConfirmed) setShowProblemEditor(true)
+                  else onGenerateBlueprint(useCase)
+                }}><TreeStructure size={16} />{problemConfirmed ? 'Draft solution blueprint' : 'Confirm problem and draft solution'}</DropdownMenuItem>}
+                <DropdownMenuItem onSelect={() => setShowCostBreakdown((value) => !value)}><CurrencyDollar size={16} />{showCostBreakdown ? 'Hide run-cost estimate' : 'Show run-cost estimate'}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setShowBusinessCase((value) => !value)}><FileText size={16} />{showBusinessCase ? 'Hide business case' : 'View business case'}</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Decision</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={disposition} onValueChange={(value) => {
+                  if (value === 'pursue' || value === 'defer' || value === 'no-go') onUpdate({ ...useCase, disposition: value })
+                }}>
+                  <DropdownMenuRadioItem value="pursue">Pursue</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="defer">Defer</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="no-go">No-go</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onSelect={() => onDelete(useCase.id)}><Trash size={16} />Delete use case</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

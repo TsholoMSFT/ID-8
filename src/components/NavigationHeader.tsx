@@ -14,6 +14,7 @@ interface NavigationHeaderProps {
   variant?: 'full' | 'minimal'
   className?: string
   iconColorClass?: string
+  hasPageHeading?: boolean
 }
 
 export function NavigationHeader({
@@ -25,8 +26,12 @@ export function NavigationHeader({
   showLogo = true,
   variant = 'full',
   className = '',
-  iconColorClass = 'text-primary'
+  iconColorClass = 'text-primary',
+  hasPageHeading = false,
 }: NavigationHeaderProps) {
+  const hasContextTitle = !!title && title !== 'Microsoft Innovation Hub: ID-8'
+  const BrandTitle = !hasContextTitle && !hasPageHeading ? 'h1' : 'p'
+  const ContextTitle = hasPageHeading ? 'p' : 'h1'
   if (variant === 'minimal') {
     return (
       <motion.div
@@ -39,6 +44,7 @@ export function NavigationHeader({
             <Button
               variant="ghost"
               size="sm"
+              aria-label="Home"
               onClick={onBackToLanding}
               className="gap-2 text-muted-foreground hover:text-foreground"
             >
@@ -50,6 +56,7 @@ export function NavigationHeader({
             <Button
               variant="ghost"
               size="sm"
+              aria-label={backLabel}
               onClick={onBack}
               className="gap-2"
             >
@@ -73,13 +80,14 @@ export function NavigationHeader({
       className={`border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 ${className}`}
     >
       <div className="container mx-auto px-4 md:px-6">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex min-h-16 items-center justify-between gap-3 py-3">
           {/* Left: Navigation */}
           <div className="flex items-center gap-4">
             {onBackToLanding && (
               <Button
                 variant="ghost"
                 size="sm"
+                aria-label="Home"
                 onClick={onBackToLanding}
                 className="gap-2 text-muted-foreground hover:text-foreground"
               >
@@ -95,6 +103,7 @@ export function NavigationHeader({
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={backLabel}
                   onClick={onBack}
                   className="gap-2"
                 >
@@ -107,14 +116,13 @@ export function NavigationHeader({
 
           {/* Center: Logo/Title */}
           {showLogo && (
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${iconColorClass.replace('text-', 'bg-')}/10`}>
                 <Sparkle size={20} weight="duotone" className={iconColorClass} />
               </div>
-              <div className="hidden md:block">
-                <h1 className="text-sm font-semibold text-foreground">
-                  {title || 'Microsoft Innovation Hub: ID-8'}
-                </h1>
+              <div className="min-w-0">
+                <BrandTitle className="text-sm font-semibold text-foreground">ID-8</BrandTitle>
+                {hasContextTitle && <ContextTitle className="sr-only md:not-sr-only md:truncate md:text-xs md:text-muted-foreground">{title}</ContextTitle>}
                 {subtitle && (
                   <p className="text-xs text-muted-foreground">{subtitle}</p>
                 )}
@@ -123,9 +131,10 @@ export function NavigationHeader({
           )}
 
           {/* Right: Live backend status */}
-          <div className="w-24 flex items-center justify-end">
-            <BackendStatusBadge />
-          </div>
+          <details className="relative shrink-0 text-xs text-muted-foreground">
+            <summary className="cursor-pointer rounded px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Service status</summary>
+            <div className="absolute right-0 top-full z-50 min-w-40 rounded-lg border bg-background p-3 shadow-md"><BackendStatusBadge /></div>
+          </details>
         </div>
       </div>
     </motion.header>

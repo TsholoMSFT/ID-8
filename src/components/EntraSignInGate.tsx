@@ -39,7 +39,7 @@ export function EntraSignInGate({ children }: { children: ReactNode }) {
           <>
             <p>Sign in with your Microsoft Entra account to access discovery and AI features.</p>
             <p className="text-sm text-muted-foreground">Public customer questionnaire links do not require sign-in.</p>
-            <Button asChild><a href="/.auth/login/aad?post_login_redirect_uri=/">Sign in with Microsoft</a></Button>
+            <Button asChild><a href={`/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(`${window.location.pathname}${window.location.search}${window.location.hash}`)}`}>Sign in with Microsoft</a></Button>
           </>
         )}
       </section>

@@ -3,6 +3,13 @@
 import '@testing-library/jest-dom/vitest'
 import { vi } from 'vitest'
 
+// jsdom has no layout observer; responsive geometry is checked in the browser.
+globalThis.ResizeObserver = class {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
+
 // PDF extraction is browser-only and is not exercised by the current unit
 // suites. Mock the transitive import so Node does not require DOMMatrix/canvas
 // merely to test company-data formatting helpers.

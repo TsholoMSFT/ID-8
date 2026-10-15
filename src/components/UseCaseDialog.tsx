@@ -265,6 +265,10 @@ export function UseCaseDialog({ open, onOpenChange, onSave, editingUseCase, sess
               />
             </div>
 
+          </div>
+          <details className="rounded-lg border p-4">
+            <summary className="cursor-pointer text-sm font-medium">Owners and qualification (optional)</summary>
+            <div className="mt-4 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="customer-accountable">Customer Accountable (Optional)</Label>
@@ -285,8 +289,6 @@ export function UseCaseDialog({ open, onOpenChange, onSave, editingUseCase, sess
                 />
               </div>
             </div>
-          </div>
-
           <Separator />
 
           <BantQualificationEditor value={bant} onChange={setBant} />
@@ -294,7 +296,8 @@ export function UseCaseDialog({ open, onOpenChange, onSave, editingUseCase, sess
           <Separator />
 
           <RaciEditor stakeholders={customerStakeholders} value={raciAssignments} onChange={setRaciAssignments} />
-
+            </div>
+          </details>
           <Separator />
 
           <KPISelector

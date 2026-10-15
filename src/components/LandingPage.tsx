@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Customer } from '@/lib/types'
+import { Customer, DiscoverySession, UseCase } from '@/lib/types'
+import { suggestedWorkspaceStep, WORKSPACE_STEPS, type WorkspaceStep } from '@/lib/app-navigation'
+import { Input } from '@/components/ui/input'
 import { TemplateSelector } from '@/components/TemplateSelector'
 import type { SessionTemplate } from '@/lib/session-templates'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,7 +24,8 @@ import {
   Heartbeat,
   ClipboardText,
   CalendarBlank,
-  EnvelopeSimple
+  EnvelopeSimple,
+  Plus
 } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AboutSection } from '@/components/AboutSection'
@@ -40,6 +43,14 @@ interface LandingPageProps {
   onOpenAgenda?: () => void
   onOpenFollowupEmail?: () => void
   onSelectTemplate?: (template: SessionTemplate) => void
+  onStartWorkspace?: () => void
+  onOpenWorkspace?: (customer: Customer, session?: DiscoverySession) => void
+  sessions?: DiscoverySession[]
+  useCases?: UseCase[]
+  workspaceSteps?: Record<string, WorkspaceStep>
+  lastWorkspaceSessionId?: string | null
+  toolLibraryOpen?: boolean
+  onToolLibraryOpenChange?: (open: boolean) => void
 }
 
 export function LandingPage({ 
@@ -55,14 +66,110 @@ export function LandingPage({
   onOpenAgenda,
   onOpenFollowupEmail,
   onSelectTemplate,
+  onStartWorkspace,
+  onOpenWorkspace,
+  sessions = [],
+  useCases = [],
+  workspaceSteps = {},
+  lastWorkspaceSessionId,
+  toolLibraryOpen,
+  onToolLibraryOpenChange,
 }: LandingPageProps) {
   const hasExistingCustomers = customers.length > 0
   const [showTemplates, setShowTemplates] = useState(false)
   const [showSecurityNotice, setShowSecurityNotice] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [localToolLibraryOpen, setLocalToolLibraryOpen] = useState(false)
+  const showToolLibrary = toolLibraryOpen ?? localToolLibraryOpen
+  const setShowToolLibrary = (open: boolean) => {
+    setLocalToolLibraryOpen(open)
+    onToolLibraryOpenChange?.(open)
+  }
+  const [customerQuery, setCustomerQuery] = useState('')
+  const [showAllCustomers, setShowAllCustomers] = useState(false)
+  const recentCustomers = customers.map((customer) => ({
+    customer,
+    sessions: sessions.filter((session) => session.customerId === customer.id).sort((a, b) => b.createdAt - a.createdAt),
+  })).sort((a, b) => (b.sessions[0]?.createdAt ?? b.customer.updatedAt ?? b.customer.createdAt) - (a.sessions[0]?.createdAt ?? a.customer.updatedAt ?? a.customer.createdAt))
+  const previousSession = sessions.find((session) => session.id === lastWorkspaceSessionId)
+  const previousCustomer = previousSession ? customers.find((customer) => customer.id === previousSession.customerId) : undefined
+  const continueCustomer = previousCustomer ?? recentCustomers[0]?.customer
+  const continueSession = previousCustomer ? previousSession : recentCustomers[0]?.sessions[0]
+  const matchingCustomers = recentCustomers.filter(({ customer }) => customer.name.toLowerCase().includes(customerQuery.trim().toLowerCase()))
+  const visibleCustomers = showAllCustomers || customerQuery.trim() ? matchingCustomers : matchingCustomers.slice(0, 6)
+
+  if (onStartWorkspace && onOpenWorkspace && !showToolLibrary) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+          <header className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xl font-semibold"><Sparkle size={24} className="text-primary" />ID-8</div>
+            <Button variant="ghost" className="gap-2" onClick={() => { setShowToolLibrary(true); setShowAdvanced(true) }}>
+              <Buildings size={16} />Advanced tools
+            </Button>
+          </header>
+          <section className="py-12 sm:py-16">
+            <p className="mb-3 text-sm font-medium text-primary">Your customer engagement workspace</p>
+            <h1 className="max-w-2xl text-3xl font-bold tracking-tight sm:text-5xl">From customer insight to a clear plan.</h1>
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              Research the customer, discover opportunities, and build a plan worth sharing. One connected journey, at your pace.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Button size="lg" className="gap-2" onClick={onStartWorkspace}><Plus size={18} />Start a customer workspace</Button>
+              {continueCustomer && <Button size="lg" variant="outline" className="gap-2" onClick={() => onOpenWorkspace(continueCustomer, continueSession)}>
+                <FolderOpen size={18} />Continue recent work
+              </Button>}
+            </div>
+            <ol aria-label="Your customer journey" className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+              {WORKSPACE_STEPS.map((step, index) => <li key={step.id}><span className="mr-1.5 text-primary">{index + 1}.</span>{step.label}</li>)}
+            </ol>
+          </section>
+          <section aria-labelledby="recent-customers-heading" className="space-y-4 border-t pt-7">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 id="recent-customers-heading" className="text-xl font-semibold">Your customers</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Pick up where you left off.</p>
+              </div>
+              {customers.length > 0 && <Input aria-label="Find a customer" placeholder="Find a customer..." value={customerQuery}
+                onChange={(event) => setCustomerQuery(event.target.value)} className="sm:max-w-xs" />}
+            </div>
+            {customers.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-7 text-sm text-muted-foreground">
+                Your first customer will appear here. Start a workspace to begin; you do not need to run AI or complete every step.
+              </div>
+            ) : matchingCustomers.length === 0 ? (
+              <p role="status" className="rounded-lg border p-6 text-sm text-muted-foreground">No customers match “{customerQuery}”. Try another name.</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleCustomers.map(({ customer, sessions: customerSessions }) => {
+                  const latest = customerSessions[0]
+                  const step = latest ? workspaceSteps[latest.id] ?? suggestedWorkspaceStep(latest, useCases) : 'research'
+                  return <Card key={customer.id} className="flex min-w-0 flex-col">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="break-words text-lg">{customer.name}</CardTitle>
+                      <CardDescription>{customerSessions.length} saved session{customerSessions.length === 1 ? '' : 's'}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="mt-auto space-y-4">
+                      <p className="text-sm text-muted-foreground">Continue with <span className="font-medium text-foreground">{WORKSPACE_STEPS.find((item) => item.id === step)?.label ?? 'Research'}</span></p>
+                      <Button variant="outline" className="w-full" onClick={() => onOpenWorkspace(customer, latest)}>Open workspace<span className="sr-only"> for {customer.name}</span></Button>
+                    </CardContent>
+                  </Card>
+                })}
+              </div>
+            )}
+            {!customerQuery.trim() && matchingCustomers.length > 6 && (
+              <Button variant="ghost" onClick={() => setShowAllCustomers((current) => !current)}>{showAllCustomers ? 'Show recent customers' : `Show all ${customers.length} customers`}</Button>
+            )}
+            <p className="pt-3 text-xs leading-relaxed text-muted-foreground">Work is stored in this browser on this device. Use Export to share it. AI runs only when you request it.</p>
+          </section>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <>
+      {showToolLibrary && <div className="border-b bg-background px-4 py-3"><div className="mx-auto max-w-5xl"><Button variant="ghost" onClick={() => setShowToolLibrary(false)}>Back to Home</Button></div></div>}
       {/* Template Selector Overlay */}
       {showTemplates && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -99,7 +206,7 @@ export function LandingPage({
             transition={{ delay: 0.3 }}
             className="text-5xl font-bold tracking-tight"
           >
-            Use Case Generator
+            {showToolLibrary ? 'Advanced tools' : 'Use Case Generator'}
           </motion.h1>
           
           <motion.p

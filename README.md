@@ -55,6 +55,22 @@ npm run dev
 5. **Open your browser**
 Navigate to `http://localhost:3000`
 
+### Guided customer workspace
+
+Start with **Start a customer workspace**, or use **Continue recent work** to reopen a saved customer and session. Only the customer name is required to begin; creating a workspace does not invoke AI.
+
+The main journey is **Research → Discover → Prioritize → Plan → Export**:
+
+- **Research:** choose online sources, documents, or pasted text. Relevant online sources are shown first; **More source types** keeps all other sources available. Loading feeds does not extract insights. The analysis button states the exact scope: up to 10 news items or 12 filings/public-sector items. Document analysis starts only after the explicit **Analyze document** action.
+- **Discover:** reuse the selected customer and research in guided questions, or use meeting notes. Drafts are isolated by workspace. Existing live discovery, assessments, templates, and specialist tools remain available through **Advanced** or **Advanced discovery options**.
+- **Prioritize:** review the existing ranking and use-case cards. Per-case editing, decision, solution, and cost controls are in **Actions**. Alternative scoring, import, export, and reassessment controls are under **Scoring and data tools**. Adding a use case starts with its title and description; owners and qualification are expandable and remain editable.
+- **Plan:** build the customer-level journey from saved sessions and use cases, with solution blueprints, engagement preparation, and mutual success plans still available.
+- **Export:** review the selected session's report before downloading. Customer-journey Word and PowerPoint exports remain in Plan.
+
+Navigation URLs retain the step, customer, and session for browser Back, Forward, and refresh. Links do not contain or transfer the actual customer records: work and drafts remain in this browser on this device, not automatically synchronized across devices. Export before moving to another browser. Public `/q/<token>` questionnaire links and Microsoft Entra protection are unchanged.
+
+Research text drafts, loaded feeds, and unfinished guided questions survive refresh without replaying AI. Selected files must be chosen again after refresh. Errors retain the input and are shown inline; clearing research insights requires confirmation and also clears their generated summary.
+
 ### Common Commands
 
 | Command | Purpose |

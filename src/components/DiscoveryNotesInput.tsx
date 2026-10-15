@@ -115,12 +115,12 @@ export function DiscoveryNotesInput({
     if (!onDraftChange) return
     const timer = setTimeout(() => {
       onDraftChange({
-        notes, customerName, sessionName, industry, entityType, location, stockTicker,
+        notes, customerName, sessionName, industry, entityType, location, stockTicker, businessFunctions,
         innovationHubSPOC, primaryStakeholder, accountTeamRep, solutionEngineer
       })
     }, 500)
     return () => clearTimeout(timer)
-  }, [notes, customerName, sessionName, industry, entityType, location, stockTicker,
+  }, [notes, customerName, sessionName, industry, entityType, location, stockTicker, businessFunctions,
       innovationHubSPOC, primaryStakeholder, accountTeamRep, solutionEngineer, onDraftChange])
 
   const isValid = notes.trim().length >= 50 && sessionName.trim() && customerName.trim()

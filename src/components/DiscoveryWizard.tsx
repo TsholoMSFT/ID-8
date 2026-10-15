@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useLocalStorage } from '@/hooks/use-local-storage'
 import { DiscoveryResponse, DiscoverySession, Industry, DiscoveryQuestion, BusinessFunction } from '@/lib/types'
 import { SessionMetadata } from '@/components/SessionMetadataForm'
 import { NavigationHeader } from '@/components/NavigationHeader'
@@ -32,9 +33,33 @@ interface DiscoveryWizardProps {
   initialIndustry?: Industry
   initialResponses?: DiscoveryResponse[]
   initialDiscoveryTrack?: DiscoveryTrack
+  initialCompanyInsights?: CompanyInsight[]
+  initialCompanyResearchSummary?: string
+  skipNaming?: boolean
+  researchPersistenceKey?: string
 }
 
 type WizardStep = 'name' | 'industry' | 'business-function' | 'track' | 'research' | 'outcomes' | 'questions'
+
+interface DiscoveryWizardDraft {
+  wizardStep: WizardStep
+  sessionName: string
+  selectedIndustry: Industry | null
+  selectedBusinessFunctions: BusinessFunction[]
+  businessUnitLabel: string
+  targetKpis: string[]
+  desiredOutcomes: string
+  discoveryTrack: DiscoveryTrack
+  currentStep: number
+  responses: DiscoveryResponse[]
+  currentAnswer: string
+  currentQuestionId?: string
+  followUpQuestions: DiscoveryQuestion[]
+  companyInsights: CompanyInsight[]
+  companyResearchSummary: string
+  currentRanking: Record<string, number | null>
+  currentComment: string
+}
 
 const industryIcons: Record<Industry, React.ReactNode> = {
   general: <Buildings size={32} weight="duotone" />,
@@ -52,39 +77,51 @@ const industryIcons: Record<Industry, React.ReactNode> = {
 
 export function DiscoveryWizard({ 
   sessionMetadata,
-  onComplete, 
+  onComplete: onSessionComplete,
   onCancel,
   onBackToLanding,
   onSwitchToLive,
   initialSessionName,
   initialIndustry,
   initialResponses,
-  initialDiscoveryTrack
+  initialDiscoveryTrack,
+  initialCompanyInsights = [],
+  initialCompanyResearchSummary = '',
+  skipNaming = false,
+  researchPersistenceKey,
 }: DiscoveryWizardProps) {
   const { isAIFeatureEnabled } = useDiscoverySettings()
-  const [wizardStep, setWizardStep] = useState<WizardStep>(
-    initialSessionName ? (initialIndustry ? 'questions' : 'industry') : 'name'
+  const [savedDraft, saveDraft] = useLocalStorage<DiscoveryWizardDraft | null>(
+    `discovery-wizard-draft:${researchPersistenceKey ?? sessionMetadata.customerName.trim().toLowerCase()}`, null,
   )
-  const [sessionName, setSessionName] = useState(initialSessionName || '')
-  const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(initialIndustry || null)
-  const [selectedBusinessFunctions, setSelectedBusinessFunctions] = useState<BusinessFunction[]>([])
-  const [businessUnitLabel, setBusinessUnitLabel] = useState('')
-  const [targetKpis, setTargetKpis] = useState<string[]>([])
-  const [desiredOutcomes, setDesiredOutcomes] = useState('')
-  const [discoveryTrack, setDiscoveryTrack] = useState<DiscoveryTrack>(initialDiscoveryTrack || 'use-case')
-  const [currentStep, setCurrentStep] = useState(0)
-  const [responses, setResponses] = useState<DiscoveryResponse[]>(initialResponses || [])
-  const [currentAnswer, setCurrentAnswer] = useState('')
+  const restoredQuestionId = useRef(savedDraft?.currentQuestionId)
+  const onComplete = (session: DiscoverySession) => {
+    saveDraft(null)
+    onSessionComplete(session)
+  }
+  const [wizardStep, setWizardStep] = useState<WizardStep>(
+    savedDraft?.wizardStep ?? (initialResponses?.length ? 'questions' : skipNaming ? 'business-function' : initialSessionName ? (initialIndustry ? 'questions' : 'industry') : 'name')
+  )
+  const [sessionName, setSessionName] = useState(savedDraft?.sessionName ?? initialSessionName ?? '')
+  const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(savedDraft?.selectedIndustry ?? initialIndustry ?? null)
+  const [selectedBusinessFunctions, setSelectedBusinessFunctions] = useState<BusinessFunction[]>(savedDraft?.selectedBusinessFunctions ?? [])
+  const [businessUnitLabel, setBusinessUnitLabel] = useState(savedDraft?.businessUnitLabel ?? '')
+  const [targetKpis, setTargetKpis] = useState<string[]>(savedDraft?.targetKpis ?? [])
+  const [desiredOutcomes, setDesiredOutcomes] = useState(savedDraft?.desiredOutcomes ?? '')
+  const [discoveryTrack, setDiscoveryTrack] = useState<DiscoveryTrack>(savedDraft?.discoveryTrack ?? initialDiscoveryTrack ?? 'use-case')
+  const [currentStep, setCurrentStep] = useState(savedDraft?.currentStep ?? 0)
+  const [responses, setResponses] = useState<DiscoveryResponse[]>(savedDraft?.responses ?? initialResponses ?? [])
+  const [currentAnswer, setCurrentAnswer] = useState(savedDraft?.currentAnswer ?? '')
   const [aiSuggestionItems, setAiSuggestionItems] = useState<string[]>([])
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false)
   const [showAiSuggestion, setShowAiSuggestion] = useState(false)
-  const [followUpQuestions, setFollowUpQuestions] = useState<DiscoveryQuestion[]>([])
+  const [followUpQuestions, setFollowUpQuestions] = useState<DiscoveryQuestion[]>(savedDraft?.followUpQuestions ?? [])
   const [isGeneratingFollowUp, setIsGeneratingFollowUp] = useState(false)
   const [showFollowUpPrompt, setShowFollowUpPrompt] = useState(false)
-  const [companyInsights, setCompanyInsights] = useState<CompanyInsight[]>([])
-  const [companyResearchSummary, setCompanyResearchSummary] = useState('')
-  const [currentRanking, setCurrentRanking] = useState<Record<string, number | null>>({})
-  const [currentComment, setCurrentComment] = useState('')
+  const [companyInsights, setCompanyInsights] = useState<CompanyInsight[]>(savedDraft?.companyInsights ?? initialCompanyInsights)
+  const [companyResearchSummary, setCompanyResearchSummary] = useState(savedDraft?.companyResearchSummary ?? initialCompanyResearchSummary)
+  const [currentRanking, setCurrentRanking] = useState<Record<string, number | null>>(savedDraft?.currentRanking ?? {})
+  const [currentComment, setCurrentComment] = useState(savedDraft?.currentComment ?? '')
 
   const handleCompanyInsightsChange = useCallback((insights: CompanyInsight[]) => {
     setCompanyInsights(insights)
@@ -103,6 +140,15 @@ export function DiscoveryWizard({
   const currentQuestion = wizardStep === 'questions' ? questions[currentStep] : null
   const isLastBaseQuestion = currentQuestion && currentStep === baseQuestions.length - 1
   const isLastQuestion = currentQuestion && currentStep === questions.length - 1
+  useEffect(() => {
+    saveDraft({
+      wizardStep, sessionName, selectedIndustry, selectedBusinessFunctions, businessUnitLabel, targetKpis,
+      desiredOutcomes, discoveryTrack, currentStep, responses, currentAnswer, currentQuestionId: currentQuestion?.id,
+      followUpQuestions, companyInsights, companyResearchSummary, currentRanking, currentComment,
+    })
+  }, [wizardStep, sessionName, selectedIndustry, selectedBusinessFunctions, businessUnitLabel, targetKpis,
+    desiredOutcomes, discoveryTrack, currentStep, responses, currentAnswer, currentQuestion?.id, followUpQuestions,
+    companyInsights, companyResearchSummary, currentRanking, currentComment, saveDraft])
 
   const getDefaultRankingState = useCallback((question: DiscoveryQuestion | null) => {
     if (!question || question.inputType !== 'ranking' || !question.rankingItems?.length) return {}
@@ -131,6 +177,10 @@ export function DiscoveryWizard({
 
   useEffect(() => {
     if (currentQuestion && wizardStep === 'questions') {
+      if (restoredQuestionId.current === currentQuestion.id) {
+        restoredQuestionId.current = undefined
+        return
+      }
       const existingResponse = responses.find((r) => r.questionId === currentQuestion.id)
       setCurrentAnswer(existingResponse?.answer || '')
       setCurrentRanking(
@@ -371,6 +421,11 @@ Keep questions conversational, specific to their answer, and focused on discover
         accountTeamRep: sessionMetadata.accountTeamRep,
         primaryStakeholder: sessionMetadata.primaryStakeholder,
         stockTicker: sessionMetadata.stockTicker || undefined,
+        entityType: sessionMetadata.entityType,
+        accountSegment: sessionMetadata.accountSegment,
+        complianceEnforcement: sessionMetadata.complianceEnforcement,
+        manualFinancials: sessionMetadata.manualFinancials,
+        userRole: sessionMetadata.userRole,
         responses: updatedResponses,
         companyInsights: companyInsights.length > 0 ? companyInsights : undefined,
         companyResearchSummary: companyResearchSummary || undefined,
@@ -432,6 +487,11 @@ Keep questions conversational, specific to their answer, and focused on discover
         accountTeamRep: sessionMetadata.accountTeamRep,
         primaryStakeholder: sessionMetadata.primaryStakeholder,
         stockTicker: sessionMetadata.stockTicker || undefined,
+        entityType: sessionMetadata.entityType,
+        accountSegment: sessionMetadata.accountSegment,
+        complianceEnforcement: sessionMetadata.complianceEnforcement,
+        manualFinancials: sessionMetadata.manualFinancials,
+        userRole: sessionMetadata.userRole,
         responses: responses,
         companyInsights: companyInsights.length > 0 ? companyInsights : undefined,
         companyResearchSummary: companyResearchSummary || undefined,
@@ -940,6 +1000,7 @@ Keep questions conversational, specific to their answer, and focused on discover
                 onSummaryChange={handleCompanyResearchSummaryChange}
                 initialInsights={companyInsights}
                 initialSummary={companyResearchSummary}
+                persistenceKey={researchPersistenceKey}
               />
             </CardContent>
 

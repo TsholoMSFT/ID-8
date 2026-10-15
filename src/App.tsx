@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react'
 import { buildSolutionPathsAnnex } from '@/lib/solution-blueprint/annex-builder'
 import { useLocalStorage } from '@/hooks/use-local-storage'
 import '@/lib/openai-service' // Initialize OpenAI service
@@ -8,10 +8,18 @@ import type { CustomerJourney, EnterpriseDiscoverySession, EnterpriseDiscoverySe
 // Union type: handlers accept both legacy and MVP sessions
 type AnyEnterpriseSession = EnterpriseDiscoverySession | EnterpriseDiscoverySessionMVP
 import type { SessionTemplate } from '@/lib/session-templates'
+import type { DiscoveryDraft } from '@/components/DiscoveryNotesInput'
 import { SessionMetadata } from '@/components/SessionMetadataForm'
 import { getTopUseCases, getRankedUseCases } from '@/lib/scoring'
 import { useDiscovery } from '@/hooks/use-discovery'
 import { useCustomers } from '@/hooks/use-customers'
+import { useAppNavigation } from '@/hooks/use-app-navigation'
+import { suggestedWorkspaceStep, type AppView, type WorkspaceStep } from '@/lib/app-navigation'
+import { WorkspaceNavigation, WorkspaceContinue } from '@/components/WorkspaceNavigation'
+import { WorkspaceSetup, type WorkspaceSetupValues } from '@/components/WorkspaceSetup'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import type { CompanyInsight } from '@/lib/company-research-service'
+import type { ResearchInsightChange } from '@/components/CompanyResearch'
 import { LandingPage } from '@/components/LandingPage'
 import { NavigationHeader } from '@/components/NavigationHeader'
 import { EmptyState } from '@/components/EmptyState'
@@ -21,7 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, ChartScatter, ListNumbers, FileArrowDown, FileArrowUp, CaretDown, CaretUp, FolderOpen, Funnel, ShieldCheck, Scales, Gauge } from '@phosphor-icons/react'
+import { Plus, ChartScatter, ListNumbers, FileArrowDown, FileArrowUp, CaretDown, CaretUp, FolderOpen, Funnel, ShieldCheck, Scales } from '@phosphor-icons/react'
 import { Toaster, toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Footer } from '@/components/ui/footer'
@@ -53,7 +61,6 @@ const SessionComparison = lazy(() => import('@/components/SessionComparison').th
 const SessionMetadataForm = lazy(() => import('@/components/SessionMetadataForm').then(m => ({ default: m.SessionMetadataForm })))
 const CsamCockpit = lazy(() => import('@/components/csam/CsamCockpit').then(m => ({ default: m.CsamCockpit })))
 const PortfolioIntelligenceView = lazy(() => import('@/components/PortfolioIntelligenceView').then(m => ({ default: m.PortfolioIntelligenceView })))
-const CustomerSelector = lazy(() => import('@/components/CustomerSelector').then(m => ({ default: m.CustomerSelector })))
 const EnterpriseDiscoveryOrchestrator = lazy(() => import('@/components/enterprise-discovery/EnterpriseDiscoveryOrchestratorMVP').then(m => ({ default: m.EnterpriseDiscoveryOrchestratorMVP })))
 const ImportUseCasesDialog = lazy(() => import('@/components/ImportUseCasesDialog').then(m => ({ default: m.ImportUseCasesDialog })))
 const PipelineBoard = lazy(() => import('@/components/PipelineBoard').then(m => ({ default: m.PipelineBoard })))
@@ -61,17 +68,17 @@ const EngagementHub = lazy(() => import('@/components/EngagementHub').then(m => 
 const QuestionnaireBuilder = lazy(() => import('@/components/QuestionnaireBuilder').then(m => ({ default: m.QuestionnaireBuilder })))
 const Fy27AlignmentCockpit = lazy(() => import('@/components/fy27/Fy27AlignmentCockpit').then(m => ({ default: m.Fy27AlignmentCockpit })))
 const AccountJourneyWorkspace = lazy(() => import('@/components/customer-journey/AccountJourneyWorkspace').then(m => ({ default: m.AccountJourneyWorkspace })))
+const CompanyResearch = lazy(() => import('@/components/CompanyResearch').then(m => ({ default: m.CompanyResearch })))
 
 /** Fallback spinner for lazy-loaded components */
 function LazyFallback() {
   return (
-    <div className="flex items-center justify-center py-12">
-      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+    <div role="status" aria-live="polite" className="flex items-center justify-center gap-3 py-12 text-sm text-muted-foreground">
+      <div aria-hidden="true" className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
+      Loading your workspace...
     </div>
   )
 }
-
-type AppView = 'landing' | 'dashboard' | 'session-metadata' | 'discovery-wizard' | 'discovery-results' | 'session-comparison' | 'live-discovery' | 'solution-blueprint' | 'enterprise-discovery' | 'notes-input' | 'notes-workflow' | 'portfolio' | 'pipeline' | 'engagement-hub' | 'customer-journey' | 'csam-cockpit' | 'questionnaire-builder' | 'fy27-cockpit'
 
 type SourceFilter = 'all' | 'ai-generated' | 'manual' | 'fallback'
 
@@ -79,16 +86,29 @@ interface SessionState {
   sessionName: string
   industry: Industry
   responses: DiscoveryResponse[]
+  workspaceSessionId?: string | null
 }
 
 function App() {
   const { sessions: discoverySessions, addSession, updateSession } = useDiscovery()
   const { customers, findOrCreateCustomer, updateCustomer } = useCustomers()
   const [useCases, setUseCases] = useLocalStorage<UseCase[]>('use-cases', [])
-  const [selectedSessionId, setSelectedSessionId] = useLocalStorage<string | null>('selected-session-id', null)
-  const [selectedCustomerId, setSelectedCustomerId] = useLocalStorage<string | null>('selected-customer-id', null)
+  const [rememberedSessionId, rememberSessionId] = useLocalStorage<string | null>('selected-session-id', null)
+  const [rememberedCustomerId, rememberCustomerId] = useLocalStorage<string | null>('selected-customer-id', null)
+  const { location, navigate } = useAppNavigation({ sessionId: rememberedSessionId, customerId: rememberedCustomerId })
+  const { view: currentView, step: workspaceStep, sessionId: selectedSessionId, customerId: selectedCustomerId } = location
+  const setCurrentView = useCallback((view: AppView) => navigate({ view }), [navigate])
+  const setSelectedSessionId = useCallback((sessionId: string | null) => navigate({ sessionId }), [navigate])
+  const setSelectedCustomerId = useCallback((customerId: string | null) => navigate({ customerId }), [navigate])
+  const [workspaceSteps, setWorkspaceSteps] = useLocalStorage<Record<string, WorkspaceStep>>('workspace-steps', {})
+  const [lastWorkspaceSessionId, setLastWorkspaceSessionId] = useLocalStorage<string | null>('last-workspace-session-id', null)
+  useEffect(() => {
+    // Other tabs may update the last-opened selection without changing this tab's route.
+    rememberSessionId(selectedSessionId)
+    rememberCustomerId(selectedCustomerId)
+  }, [selectedSessionId, selectedCustomerId, rememberSessionId, rememberCustomerId])
   const [enterpriseSessions, setEnterpriseSessions] = useLocalStorage<AnyEnterpriseSession[]>('enterprise-sessions', [])
-  const [currentEnterpriseSession, setCurrentEnterpriseSession] = useState<AnyEnterpriseSession | null>(null)
+  const [currentEnterpriseSession, setCurrentEnterpriseSession] = useLocalStorage<AnyEnterpriseSession | null>('active-enterprise-session', null)
 
   // Per-customer Solution Blueprint state (read-only here \u2014 owned by SolutionBlueprintWorkspace).
   // We surface its signals (reuse %, gap count) on the prioritization matrix.
@@ -142,14 +162,12 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   
-  const [currentView, setCurrentView] = useState<AppView>('landing')
-  const [currentDiscoverySession, setCurrentDiscoverySession] = useState<DiscoverySession | null>(null)
-  const [comparingSessions, setComparingSessions] = useState<DiscoverySession[]>([])
-  const [sessionState, setSessionState] = useState<SessionState | null>(null)
-  const [pendingSessionMetadata, setPendingSessionMetadata] = useState<SessionMetadata | null>(null)
-  const [pendingDiscoveryTrack, setPendingDiscoveryTrack] = useState<DiscoveryTrack | null>(null)
-  const [discoveryMode, setDiscoveryMode] = useState<'standard' | 'live'>('standard')
-  const [notesSession, setNotesSession] = useState<{ metadata: SessionMetadata; notes: string; extractedUseCases: ExtractedUseCase[] } | null>(null)
+  const [comparingSessions, setComparingSessions] = useLocalStorage<DiscoverySession[]>('comparing-discovery-sessions', [])
+  const [sessionState, setSessionState] = useLocalStorage<SessionState | null>('active-discovery-state', null)
+  const [pendingSessionMetadata, setPendingSessionMetadata] = useLocalStorage<SessionMetadata | null>('pending-session-metadata', null)
+  const [pendingDiscoveryTrack, setPendingDiscoveryTrack] = useLocalStorage<DiscoveryTrack | null>('pending-discovery-track', null)
+  const [discoveryMode, setDiscoveryMode] = useLocalStorage<'standard' | 'live'>('active-discovery-mode', 'standard')
+  const [notesSession, setNotesSession] = useLocalStorage<{ sessionId: string; metadata: SessionMetadata; notes: string; extractedUseCases: ExtractedUseCase[] } | null>('active-notes-session', null)
   
   // Draft persistence for notes - prevents data loss when switching views
   const [draftDiscoveryNotes, setDraftDiscoveryNotes] = useLocalStorage<{
@@ -161,8 +179,9 @@ function App() {
     location?: string
     stockTicker?: string
   } | null>('discovery-draft', null)
+  const [workspaceNotesDrafts, setWorkspaceNotesDrafts] = useLocalStorage<Record<string, DiscoveryDraft>>('workspace-notes-drafts', {})
   
-  const [scoringMethod, setScoringMethod] = useState<ScoringMethod>('blended')
+  const [scoringMethod, setScoringMethod] = useLocalStorage<ScoringMethod>('scoring-method', 'blended')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [tableExportOpen, setTableExportOpen] = useState(false)
   const [sessionManagerOpen, setSessionManagerOpen] = useState(false)
@@ -175,11 +194,59 @@ function App() {
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [execSummaryGeneratorOpen, setExecSummaryGeneratorOpen] = useState(false)
   const [requestedEngagementTool, setRequestedEngagementTool] = useState<'agenda' | 'email' | undefined>()
+  const [toolLibraryOpen, setToolLibraryOpen] = useState(false)
   const selectedSession = discoverySessions?.find((s) => s.id === selectedSessionId) || null
+  const currentDiscoverySession = selectedSession
+  const workspaceDiscovery = !!selectedSession
+  const activeSessionState = sessionState && (sessionState.workspaceSessionId ?? null) === selectedSessionId ? sessionState : null
+  const setCurrentDiscoverySession = (session: DiscoverySession | null) => {
+    if (session) navigate({ customerId: session.customerId, sessionId: session.id })
+  }
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId) || null
   const filteredUseCases = useCases?.filter((uc) => uc.discoverySessionId === selectedSessionId) || []
+  const customerSessionIds = new Set(discoverySessions.filter((session) => session.customerId === selectedCustomerId).map((session) => session.id))
+  const hasCustomerUseCases = (useCases || []).some((useCase) => customerSessionIds.has(useCase.discoverySessionId ?? ''))
+  useEffect(() => {
+    setDialogOpen(false)
+    setTableExportOpen(false)
+    setSessionManagerOpen(false)
+    setImportDialogOpen(false)
+    setExecSummaryGeneratorOpen(false)
+    setEditingUseCase(null)
+  }, [currentView, workspaceStep, selectedCustomerId, selectedSessionId])
   
   const useCasesList = filteredUseCases
+  const workspaceAvailable = !!selectedSession && selectedSession.customerId === selectedCustomerId
+  useEffect(() => {
+    if (currentView !== 'dashboard' || !workspaceAvailable || !selectedSessionId) return
+    setWorkspaceSteps((current) => current[selectedSessionId] === workspaceStep ? current : { ...current, [selectedSessionId]: workspaceStep })
+    setLastWorkspaceSessionId(selectedSessionId)
+  }, [currentView, workspaceAvailable, selectedSessionId, workspaceStep, setWorkspaceSteps, setLastWorkspaceSessionId])
+  const handleWorkspaceStepChange = useCallback((step: WorkspaceStep) => navigate({ view: 'dashboard', step }), [navigate])
+  const handleResearchInsightsChange = useCallback((companyInsights: CompanyInsight[], change?: ResearchInsightChange) => {
+    if (!selectedSessionId) return
+    updateSession(selectedSessionId, (session) => {
+      const existing = session.companyInsights ?? []
+      if (change?.type === 'append') {
+        const ids = new Set(existing.map((insight) => insight.id))
+        return { companyInsights: [...existing, ...change.insights.filter((insight) => !ids.has(insight.id))], companyResearchSummary: '' }
+      }
+      if (change?.type === 'remove') return { companyInsights: existing.filter((insight) => insight.id !== change.id), companyResearchSummary: '' }
+      return { companyInsights, companyResearchSummary: '' }
+    })
+  }, [selectedSessionId, updateSession])
+  const handleResearchSummaryChange = useCallback((companyResearchSummary: string, sourceInsightIds?: readonly string[]) => {
+    if (!selectedSessionId) return
+    updateSession(selectedSessionId, (session) => {
+      const insights = session.companyInsights ?? []
+      if (sourceInsightIds && (sourceInsightIds.length !== insights.length || !insights.every((insight) => sourceInsightIds.includes(insight.id)))) {
+        console.warn('Research changed while a summary was being generated; the stale summary was not saved.')
+        toast.info('Research changed. Generate a new summary from the current insights.')
+        return {}
+      }
+      return { companyResearchSummary }
+    })
+  }, [selectedSessionId, updateSession])
   const topUseCases = getTopUseCases(useCasesList, scoringMethod, 5)
   const topUseCaseIds = new Set(topUseCases.map((uc) => uc.id))
 
@@ -319,6 +386,8 @@ function App() {
       kpis: data.kpis || [],
       customerAccountable: data.customerAccountable,
       microsoftAccountable: data.microsoftAccountable,
+      bant: data.bant,
+      raciAssignments: data.raciAssignments,
       aiRegulations: data.aiRegulations,
       cybersecurity: data.cybersecurity,
       dataSources: data.dataSources,
@@ -460,20 +529,101 @@ function App() {
     setPendingDiscoveryTrack(null)
   }
 
+  const handleOpenWorkspace = (session: DiscoverySession) => {
+    navigate({
+      view: 'dashboard',
+      customerId: session.customerId,
+      sessionId: session.id,
+      step: workspaceSteps[session.id] ?? suggestedWorkspaceStep(session, useCases || []),
+    })
+  }
+
+  const handleCreateWorkspace = (values: WorkspaceSetupValues) => {
+    const existingCustomer = customers.find((customer) => customer.name.trim().toLowerCase() === values.customerName.toLowerCase())
+    const existingSession = existingCustomer && [...discoverySessions].filter((session) => session.customerId === existingCustomer.id).sort((a, b) => b.createdAt - a.createdAt)[0]
+    if (existingSession) {
+      handleOpenWorkspace(existingSession)
+      return
+    }
+    const customer = existingCustomer ?? findOrCreateCustomer(values.customerName, '')
+    const session: DiscoverySession = {
+      id: `workspace-${crypto.randomUUID()}`,
+      customerId: customer.id,
+      customerName: customer.name,
+      name: `${customer.name} workspace`,
+      innovationHubSPOC: customer.innovationHubSPOC,
+      stockTicker: customer.stockTicker,
+      industry: values.industry,
+      entityType: values.entityType,
+      primaryStakeholder: '',
+      accountTeamRep: '',
+      innovationHubLocation: '',
+      solutionEngineer: '',
+      responses: [],
+      creationSource: 'workspace',
+      createdAt: Date.now(),
+    }
+    addSession(session)
+    navigate({ view: 'dashboard', customerId: customer.id, sessionId: session.id, step: 'research' })
+  }
+
+  const handleWorkspaceCustomerChange = (customerId: string) => {
+    const session = [...discoverySessions].filter((item) => item.customerId === customerId).sort((a, b) => b.createdAt - a.createdAt)[0]
+    if (session) {
+      handleOpenWorkspace(session)
+      return
+    }
+    const customer = customers.find((item) => item.id === customerId)
+    if (customer) handleCreateWorkspace({ customerName: customer.name, industry: 'general', entityType: 'public-company' })
+  }
+
+  const workspaceMetadata: SessionMetadata | null = selectedSession ? {
+    customerName: selectedSession.customerName,
+    innovationHubSPOC: selectedSession.innovationHubSPOC ?? '',
+    primaryStakeholder: selectedSession.primaryStakeholder,
+    accountTeamRep: selectedSession.accountTeamRep,
+    innovationHubLocation: selectedSession.innovationHubLocation,
+    solutionEngineer: selectedSession.solutionEngineer,
+    stockTicker: selectedSession.stockTicker,
+    entityType: selectedSession.entityType,
+    accountSegment: selectedSession.accountSegment,
+    complianceEnforcement: selectedSession.complianceEnforcement,
+    manualFinancials: selectedSession.manualFinancials,
+    userRole: selectedSession.userRole,
+  } : null
+  const discoveryMetadata = workspaceMetadata ?? pendingSessionMetadata
+  const handleNotesDraftChange = useCallback((draft: DiscoveryDraft) => {
+    if (selectedSessionId) setWorkspaceNotesDrafts((current) => ({ ...current, [selectedSessionId]: draft }))
+    else setDraftDiscoveryNotes(draft)
+  }, [selectedSessionId, setWorkspaceNotesDrafts, setDraftDiscoveryNotes])
+  const handleNotesDraftClear = useCallback(() => {
+    if (selectedSessionId) setWorkspaceNotesDrafts((current) => {
+      const next = { ...current }
+      delete next[selectedSessionId]
+      return next
+    })
+    else setDraftDiscoveryNotes(null)
+  }, [selectedSessionId, setWorkspaceNotesDrafts, setDraftDiscoveryNotes])
+
   const handleStartDiscovery = () => {
     resetPendingDiscoveryDraft()
     setDiscoveryMode('standard')
     setPendingDiscoveryTrack('use-case')
-    setCurrentView('session-metadata')
+    const reuseWorkspace = currentView === 'dashboard' && !!workspaceMetadata
+    if (reuseWorkspace) {
+      setPendingSessionMetadata(workspaceMetadata)
+      setCurrentView('discovery-wizard')
+    } else navigate({ view: 'session-metadata', customerId: null, sessionId: null })
   }
 
-  const [pendingBlueprintSeed, setPendingBlueprintSeed] = useState<{
+  const [pendingBlueprintSeed, setPendingBlueprintSeed] = useLocalStorage<{
+    customerId: string | null
     name: string
     description?: string
     archetypeId?: string
     sovereigntyRequired?: boolean
     sourceUseCaseId?: string
-  } | null>(null)
+  } | null>('pending-blueprint-seed', null)
 
   const handleStartSolutionBlueprint = (opts?: { fromUseCase?: UseCase }) => {
     if (opts?.fromUseCase) {
@@ -482,6 +632,7 @@ function App() {
       import('@/lib/solution-blueprint/archetype-inference').then(m => {
         const inferred = m.inferArchetype(uc)
         setPendingBlueprintSeed({
+          customerId: selectedCustomerId,
           name: uc.title,
           description: uc.description,
           archetypeId: inferred?.archetype.id,
@@ -504,13 +655,18 @@ function App() {
     resetPendingDiscoveryDraft()
     setDiscoveryMode('live')
     setPendingDiscoveryTrack('use-case')
-    setCurrentView('session-metadata')
+    const reuseWorkspace = currentView === 'dashboard' && !!workspaceMetadata
+    if (reuseWorkspace) {
+      setPendingSessionMetadata(workspaceMetadata)
+      setCurrentView('live-discovery')
+    } else navigate({ view: 'session-metadata', customerId: null, sessionId: null })
   }
 
   const handleStartNotesAnalysis = () => {
     resetPendingDiscoveryDraft()
     setNotesSession(null)
-    setCurrentView('notes-input')
+    if (currentView === 'dashboard') setCurrentView('notes-input')
+    else navigate({ view: 'notes-input', customerId: null, sessionId: null })
   }
 
   const handleStartEnterpriseDiscovery = () => {
@@ -561,10 +717,8 @@ function App() {
   }
 
   const handleBackToLanding = () => {
+    setToolLibraryOpen(false)
     setCurrentView('landing')
-    setCurrentDiscoverySession(null)
-    resetPendingDiscoveryDraft()
-    setCurrentEnterpriseSession(null)
   }
   
   const handleSessionMetadataSubmit = (metadata: SessionMetadata) => {
@@ -577,12 +731,12 @@ function App() {
   }
 
   const handleSwitchToLive = (sessionName: string, industry: Industry, responses: DiscoveryResponse[]) => {
-    setSessionState({ sessionName, industry, responses })
+    setSessionState({ sessionName, industry, responses, workspaceSessionId: selectedSessionId })
     setCurrentView('live-discovery')
   }
 
   const handleSwitchToStandard = (sessionName: string, industry: Industry, responses: DiscoveryResponse[]) => {
-    setSessionState({ sessionName, industry, responses })
+    setSessionState({ sessionName, industry, responses, workspaceSessionId: selectedSessionId })
     setCurrentView('discovery-wizard')
   }
 
@@ -591,9 +745,18 @@ function App() {
     const sessionWithCustomer: DiscoverySession = {
       ...session,
       customerId: customer.id,
+      companyInsights: session.companyInsights ?? (selectedSession?.customerId === customer.id ? selectedSession.companyInsights : undefined),
+      companyResearchSummary: session.companyResearchSummary ?? (selectedSession?.customerId === customer.id ? selectedSession.companyResearchSummary : undefined),
+      entityType: session.entityType ?? discoveryMetadata?.entityType,
+      accountSegment: session.accountSegment ?? discoveryMetadata?.accountSegment,
+      complianceEnforcement: session.complianceEnforcement ?? discoveryMetadata?.complianceEnforcement,
+      manualFinancials: session.manualFinancials ?? discoveryMetadata?.manualFinancials,
+      userRole: session.userRole ?? discoveryMetadata?.userRole,
     }
     addSession(sessionWithCustomer)
     setCurrentDiscoverySession(sessionWithCustomer)
+    setSelectedCustomerId(customer.id)
+    setSelectedSessionId(session.id)
     setPendingSessionMetadata(null)
     setPendingDiscoveryTrack(null)
     setCurrentView('discovery-results')
@@ -635,12 +798,18 @@ function App() {
     // Create customer and link to session
     const customer = findOrCreateCustomer(session.customerName, session.innovationHubSPOC || '', session.stockTicker)
     session.customerId = customer.id
+    if (selectedSession?.customerId === customer.id) {
+      session.companyInsights = selectedSession.companyInsights
+      session.companyResearchSummary = selectedSession.companyResearchSummary
+    }
     
     // Add session
     addSession(session)
+    setSelectedCustomerId(customer.id)
+    setSelectedSessionId(session.id)
     
     // Store notes session data for workflow
-    setNotesSession({ metadata, notes, extractedUseCases })
+    setNotesSession({ sessionId: session.id, metadata, notes, extractedUseCases })
     setCurrentDiscoverySession(session)
     setCurrentView('notes-workflow')
   }
@@ -659,7 +828,7 @@ function App() {
       industry: template.industry,
       entityType: template.entityType
     })
-    setCurrentView('notes-input')
+    navigate({ view: 'notes-input', customerId: null, sessionId: null })
   }
 
   const handleCreateUseCasesFromDiscovery = (newUseCases: Partial<UseCase>[], executiveSummary: string, nextAction: 'dashboard' | 'solution-design' = 'dashboard') => {
@@ -716,12 +885,14 @@ function App() {
       // The workflow emits ranked order, so seed Solution Envisioning with #1.
       handleStartSolutionBlueprint({ fromUseCase: createdUseCases[0] })
     } else {
-      setCurrentView('dashboard')
+      navigate({ view: 'dashboard', step: 'prioritize' })
     }
   }
 
   const handleViewSession = (session: DiscoverySession) => {
     setCurrentDiscoverySession(session)
+    setSelectedCustomerId(session.customerId)
+    setSelectedSessionId(session.id)
     setCurrentView('discovery-results')
   }
 
@@ -729,6 +900,29 @@ function App() {
     setComparingSessions(sessions)
     setCurrentView('session-comparison')
   }
+
+  const workspaceTools = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild><Button variant="outline" className="shrink-0 gap-2">Advanced<CaretDown size={14} /></Button></DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel>Customer tools</DropdownMenuLabel>
+        <DropdownMenuItem onSelect={() => setSessionManagerOpen(true)}>Manage and compare sessions</DropdownMenuItem>
+        <DropdownMenuItem onSelect={handleStartEnterpriseDiscovery}>Strategic assessment</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => handleStartSolutionBlueprint()}>Solution blueprints</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => handleStartEngagementHub()}>Engagement hub</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setCurrentView('questionnaire-builder')}>Customer questionnaires</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setCurrentView('pipeline')} disabled={!selectedSession}>Use-case pipeline</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Specialist workspaces</DropdownMenuLabel>
+        <DropdownMenuItem onSelect={() => setCurrentView('portfolio')}>Portfolio intelligence</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setCurrentView('csam-cockpit')}>Delivery cockpit</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setCurrentView('fy27-cockpit')}>FY27 alignment</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => setCurrentView('workspace-setup')}>Start another workspace</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => { setToolLibraryOpen(true); setCurrentView('landing') }}>All tools and templates</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   return (
     <>
@@ -747,14 +941,41 @@ function App() {
           onStartSolutionBlueprint={handleStartSolutionBlueprint}
           onStartEnterpriseDiscovery={handleStartEnterpriseDiscovery}
           onStartNotesAnalysis={handleStartNotesAnalysis}
-          onViewExisting={() => setCurrentView('dashboard')}
+          onViewExisting={() => {
+            const recent = [...discoverySessions].sort((a, b) => b.createdAt - a.createdAt)[0]
+            if (recent) handleOpenWorkspace(recent)
+            else setCurrentView('workspace-setup')
+          }}
           onOpenPortfolio={() => setCurrentView('portfolio')}
           onOpenCsamCockpit={() => setCurrentView('csam-cockpit')}
           onOpenCustomerQuestionnaire={() => setCurrentView('questionnaire-builder')}
           onOpenAgenda={() => handleStartEngagementHub('agenda')}
           onOpenFollowupEmail={() => handleStartEngagementHub('email')}
           onSelectTemplate={handleSelectTemplate}
+          onStartWorkspace={() => setCurrentView('workspace-setup')}
+          onOpenWorkspace={(customer, session) => {
+            if (session) handleOpenWorkspace(session)
+            else handleCreateWorkspace({ customerName: customer.name, industry: 'general', entityType: 'public-company' })
+          }}
+          sessions={discoverySessions}
+          useCases={useCases || []}
+          workspaceSteps={workspaceSteps}
+          lastWorkspaceSessionId={lastWorkspaceSessionId}
+          toolLibraryOpen={toolLibraryOpen}
+          onToolLibraryOpenChange={setToolLibraryOpen}
         />
+      )}
+
+      {currentView === 'workspace-setup' && <WorkspaceSetup customers={customers} onCreate={handleCreateWorkspace} onCancel={handleBackToLanding} />}
+
+      {((currentView === 'discovery-wizard' && !discoveryMetadata) ||
+        (currentView === 'discovery-results' && !currentDiscoverySession) ||
+        (currentView === 'notes-workflow' && (!currentDiscoverySession || notesSession?.sessionId !== selectedSessionId))) && (
+        <div className="mx-auto max-w-xl px-4 py-12">
+          <Card><CardHeader><CardTitle>Return to your workspace</CardTitle><CardDescription>This activity is no longer open. Your saved sessions and research are still available.</CardDescription></CardHeader>
+            <CardContent><Button onClick={() => navigate({ view: 'dashboard', step: 'discover' })}>Open workspace</Button></CardContent>
+          </Card>
+        </div>
       )}
 
       {currentView === 'portfolio' && (
@@ -940,10 +1161,11 @@ function App() {
             subtitle="Use-case led envisioning \u2014 best-fit vs estate-optimized"
           />
           <div className="container mx-auto px-4 md:px-6 py-8 max-w-7xl">
+            {pendingBlueprintSeed && pendingBlueprintSeed.customerId !== selectedCustomerId && <p role="alert" className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">This blueprint draft belongs to another customer. Open the original workspace or choose a use case for this customer.</p>}
             <SolutionBlueprintWorkspace
               customers={customers}
               initialCustomerId={selectedCustomerId}
-              initialUseCase={pendingBlueprintSeed}
+              initialUseCase={pendingBlueprintSeed?.customerId === selectedCustomerId ? pendingBlueprintSeed : null}
               onLinkBlueprint={(sourceUseCaseId, slot) => {
                 setUseCases((current) =>
                   (current || []).map((uc) =>
@@ -962,7 +1184,7 @@ function App() {
         <SessionComparison 
           sessions={comparingSessions} 
           onBack={() => {
-            setCurrentView('dashboard')
+            navigate({ view: 'dashboard', step: 'prioritize' })
             setComparingSessions([])
           }} 
         />
@@ -979,16 +1201,23 @@ function App() {
 
       {currentView === 'notes-input' && (
         <DiscoveryNotesInput
+          key={selectedSessionId ?? 'standalone-notes'}
+          sessionMetadata={workspaceMetadata ?? undefined}
           onAnalyze={handleNotesAnalyze}
           onCancel={handleNotesCancel}
           onBackToLanding={handleBackToLanding}
-          initialDraft={draftDiscoveryNotes}
-          onDraftChange={setDraftDiscoveryNotes}
-          onDraftClear={() => setDraftDiscoveryNotes(null)}
+          initialDraft={selectedSession ? workspaceNotesDrafts[selectedSession.id] ?? {
+            notes: '', sessionName: `${selectedSession.customerName} notes`, customerName: selectedSession.customerName,
+            industry: selectedSession.industry ?? 'general', entityType: selectedSession.entityType,
+            location: selectedSession.innovationHubLocation, stockTicker: selectedSession.stockTicker,
+            businessFunctions: selectedSession.businessFunctions,
+          } : draftDiscoveryNotes}
+          onDraftChange={handleNotesDraftChange}
+          onDraftClear={handleNotesDraftClear}
         />
       )}
 
-      {currentView === 'notes-workflow' && currentDiscoverySession && notesSession && (
+      {currentView === 'notes-workflow' && currentDiscoverySession && notesSession?.sessionId === selectedSessionId && (
         <EnhancedDiscoveryWorkflow
           session={currentDiscoverySession}
           initialUseCases={notesSession.extractedUseCases.map(uc => ({
@@ -1069,7 +1298,7 @@ function App() {
               description: `${newUseCases.length} use cases created and prioritized`
             })
             
-            setCurrentView('dashboard')
+            navigate({ view: 'dashboard', step: 'prioritize' })
             setCurrentDiscoverySession(null)
             setNotesSession(null)
 
@@ -1082,17 +1311,22 @@ function App() {
         />
       )}
 
-      {currentView === 'discovery-wizard' && pendingSessionMetadata && (
+      {currentView === 'discovery-wizard' && discoveryMetadata && (
         <DiscoveryWizard 
-          sessionMetadata={pendingSessionMetadata}
+          key={selectedSessionId ?? discoveryMetadata.customerName}
+          sessionMetadata={discoveryMetadata}
           onComplete={handleDiscoveryComplete} 
           onCancel={handleDiscoveryCancel}
           onBackToLanding={handleBackToLanding}
           onSwitchToLive={handleSwitchToLive}
-          initialSessionName={sessionState?.sessionName}
-          initialIndustry={sessionState?.industry}
-          initialResponses={sessionState?.responses}
-          initialDiscoveryTrack={pendingDiscoveryTrack || undefined}
+          initialSessionName={activeSessionState?.sessionName ?? (workspaceDiscovery ? selectedSession?.name : undefined)}
+          initialIndustry={activeSessionState?.industry ?? (workspaceDiscovery ? selectedSession?.industry : undefined)}
+          initialResponses={activeSessionState?.responses}
+          initialDiscoveryTrack={workspaceDiscovery ? 'use-case' : pendingDiscoveryTrack || undefined}
+          initialCompanyInsights={workspaceDiscovery ? selectedSession?.companyInsights : undefined}
+          initialCompanyResearchSummary={workspaceDiscovery ? selectedSession?.companyResearchSummary : undefined}
+          skipNaming={workspaceDiscovery}
+          researchPersistenceKey={workspaceDiscovery ? selectedSessionId ?? undefined : undefined}
         />
       )}
 
@@ -1104,22 +1338,22 @@ function App() {
         />
       )}
 
-      {currentView === 'live-discovery' && !sessionState && pendingSessionMetadata && (
+      {currentView === 'live-discovery' && !activeSessionState && discoveryMetadata && (
         <LiveDiscoverySetup
           onStart={(sessionName, industry) => {
-            setSessionState({ sessionName, industry, responses: [] })
+            setSessionState({ sessionName, industry, responses: [], workspaceSessionId: selectedSessionId })
           }}
           onCancel={handleDiscoveryCancel}
           onBackToLanding={() => setCurrentView('landing')}
         />
       )}
 
-      {currentView === 'live-discovery' && sessionState && pendingSessionMetadata && (
+      {currentView === 'live-discovery' && activeSessionState && discoveryMetadata && (
         <LiveDiscoveryMode
-          sessionMetadata={pendingSessionMetadata}
-          sessionName={sessionState.sessionName}
-          selectedIndustry={sessionState.industry}
-          initialResponses={sessionState.responses}
+          sessionMetadata={discoveryMetadata}
+          sessionName={activeSessionState.sessionName}
+          selectedIndustry={activeSessionState.industry}
+          initialResponses={activeSessionState.responses}
           onComplete={handleDiscoveryComplete}
           onCancel={handleDiscoveryCancel}
           onBackToLanding={() => setCurrentView('landing')}
@@ -1128,7 +1362,7 @@ function App() {
       )}
 
       {/* Fallback when live-discovery view is active but conditions not met */}
-      {currentView === 'live-discovery' && !pendingSessionMetadata && (
+      {currentView === 'live-discovery' && !discoveryMetadata && (
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
           <Card className="w-full max-w-md border-2 border-destructive/30">
             <CardHeader>
@@ -1169,64 +1403,52 @@ function App() {
 
       {currentView === 'dashboard' && (
         <motion.div
-          animate={{
-            backgroundColor: scoringMethod === 'impact-feasibility' 
-              ? 'oklch(0.25 0.02 240)'
-              : 'oklch(0.25 0.02 240)',
-          }}
-          transition={{ duration: 0.6, ease: 'easeInOut' }}
-          className="min-h-screen"
+          className="min-h-screen bg-background"
         >
           <NavigationHeader 
             onBackToLanding={handleBackToLanding}
-            title="Microsoft Innovation Hub: ID-8"
-            subtitle="Use Case Assessment Platform"
+            title="Customer workspace"
+            subtitle={selectedCustomer?.name}
+            hasPageHeading
           />
           <div className="container mx-auto px-4 md:px-6 py-8 max-w-7xl">
-            <motion.header
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-8 text-center"
-            >
-              <h2 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
-                ID-8 - Use Case Assessment
-              </h2>
-            </motion.header>
-
-            <div className="mb-6 flex justify-center gap-3 flex-wrap">
-              {selectedSessionId && (
-                <Button variant="outline" onClick={() => setCurrentView('pipeline')}>
-                  <Funnel className="mr-2" /> Open use-case pipeline
-                </Button>
-              )}
-              <Button variant="outline" onClick={() => setCurrentView('fy27-cockpit')}>
-                <Gauge className="mr-2" /> FY27 alignment cockpit
-              </Button>
-            </div>
-
-            {!selectedSession && (discoverySessions?.length === 0 || !discoverySessions) ? (
-              <>
-                <DiscoveryLauncher 
-                  onStartDiscovery={handleStartDiscovery} 
-                  onStartLiveDiscovery={handleStartLiveDiscovery} 
-                  onStartEnterpriseDiscovery={handleStartEnterpriseDiscovery}
-                  onResumeEnterpriseDiscovery={handleResumeEnterpriseDiscovery}
-                  onOpenEngagementHub={handleStartEngagementHub}
-                  accountSegment={undefined}
-                />
-                <EmptyState onAddFirst={handleOpenAddDialog} onImport={() => setImportDialogOpen(true)} />
-              </>
+            {!selectedSession || !selectedCustomer || selectedSession.customerId !== selectedCustomer.id ? (
+              <Card>
+                <CardHeader><CardTitle>Choose a customer workspace</CardTitle><CardDescription>This workspace is not available in this browser. Your other saved work has not been changed.</CardDescription></CardHeader>
+                <CardContent className="flex flex-wrap gap-3">
+                  <Button onClick={handleBackToLanding}>Choose a saved customer</Button>
+                  <Button variant="outline" onClick={() => setCurrentView('workspace-setup')}>Start a workspace</Button>
+                  {workspaceTools}
+                </CardContent>
+              </Card>
             ) : (
               <>
-                {customers.length > 0 && (
-                  <CustomerSelector
+                <WorkspaceNavigation
                     customers={customers}
-                    sessions={discoverySessions || []}
-                    selectedCustomerId={selectedCustomerId}
-                    onSelectCustomer={setSelectedCustomerId}
+                    sessions={discoverySessions}
+                    customer={selectedCustomer}
+                    session={selectedSession}
+                    step={workspaceStep}
+                    onSelectCustomer={handleWorkspaceCustomerChange}
+                    onSelectSession={handleOpenWorkspace}
+                    onStepChange={handleWorkspaceStepChange}
+                    actions={workspaceTools}
+                />
+                {workspaceStep === 'research' && (
+                  <CompanyResearch
+                    key={selectedSession.id}
+                    companyName={selectedSession.customerName}
+                    entityType={selectedSession.entityType}
+                    initialInsights={selectedSession.companyInsights}
+                    initialSummary={selectedSession.companyResearchSummary}
+                    onInsightsChange={handleResearchInsightsChange}
+                    onSummaryChange={handleResearchSummaryChange}
+                    persistenceKey={selectedSession.id}
                   />
                 )}
-
+                {workspaceStep === 'discover' && <details className="mb-6 rounded-lg border p-4">
+                  <summary className="cursor-pointer text-sm font-medium">Customer details and stakeholders</summary>
+                  <div className="mt-4">
                 <CustomerMetadataComponent
                   metadata={customerMetadata || {
                     customerName: '',
@@ -1256,7 +1478,9 @@ function App() {
                     onChange={(stakeholders) => updateCustomer(selectedCustomer.id, { stakeholders })}
                   />
                 )}
-
+                  </div>
+                </details>}
+                {workspaceStep === 'export' && <>
                 {(customerMetadata?.executiveSummary || '').trim() ? (
                   <ExecutiveSummary
                     summary={customerMetadata?.executiveSummary || ''}
@@ -1278,7 +1502,46 @@ function App() {
                     </CardFooter>
                   </Card>
                 ) : null}
-
+                  <Card>
+                    <CardHeader><CardTitle>Share your work</CardTitle><CardDescription>Review your assessment and download a customer-ready PDF report.</CardDescription></CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-sm text-muted-foreground">{useCasesList.length} use case{useCasesList.length === 1 ? '' : 's'} in this session. Reports use the selected customer and ranking method.</p>
+                      {useCasesList.length > 0 ? <Button onClick={handleOpenTableExport} className="gap-2"><FileArrowDown size={18} />Review and export report</Button>
+                        : <Button variant="outline" onClick={() => handleWorkspaceStepChange('discover')}>Discover use cases first</Button>}
+                      <p className="text-xs text-muted-foreground">Downloads do not send an email or publish customer data. Customer-journey Word and PowerPoint exports are available in Plan.</p>
+                    </CardContent>
+                  </Card>
+                </>}
+                {workspaceStep === 'plan' && (hasCustomerUseCases ? <>
+                  <AccountJourneyWorkspace key={selectedCustomer.id} customer={selectedCustomer} sessions={discoverySessions} useCases={useCases || []} />
+                  <details className="mt-6 rounded-lg border p-4">
+                    <summary className="cursor-pointer text-sm font-medium">More planning tools</summary>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <MutualSuccessPlanDialog customerId={selectedCustomer.id} customerName={selectedCustomer.name} />
+                      <Button variant="outline" onClick={() => handleStartSolutionBlueprint()}>Build a solution blueprint</Button>
+                      <Button variant="outline" onClick={() => handleStartEngagementHub()}>Prepare an engagement</Button>
+                    </div>
+                  </details>
+                </> : <Card>
+                  <CardHeader><CardTitle>Build a plan around your priorities</CardTitle><CardDescription>Add or discover a use case before creating the customer journey.</CardDescription></CardHeader>
+                  <CardContent><Button variant="outline" onClick={() => handleWorkspaceStepChange('prioritize')}>Go to Prioritize</Button></CardContent>
+                </Card>)}
+                {workspaceStep === 'discover' && <>
+                  <Card className="mb-6">
+                    <CardHeader><CardTitle>Turn customer needs into opportunities</CardTitle><CardDescription>Answer guided questions using the customer context you already collected.</CardDescription></CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-sm text-muted-foreground">{selectedSession.companyInsights?.length
+                        ? `${selectedSession.companyInsights.length} research insight${selectedSession.companyInsights.length === 1 ? '' : 's'} will be carried into discovery.`
+                        : 'You can begin without research, or return to Research to collect more context.'}</p>
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <Button onClick={handleStartDiscovery}>Start guided questions</Button>
+                        <Button variant="outline" onClick={handleStartNotesAnalysis}>Use meeting notes instead</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <details className="mb-6 rounded-lg border p-4">
+                    <summary className="cursor-pointer text-sm font-medium">Advanced discovery options and saved sessions</summary>
+                    <div className="mt-4">
                 <Disclaimer variant="compact" className="mb-6" />
 
                 <DiscoveryLauncher 
@@ -1315,12 +1578,16 @@ function App() {
                     </div>
                   </CardHeader>
                 </Card>
-
-                {useCasesList.length === 0 ? (
+                    </div>
+                  </details>
+                </>}
+                {workspaceStep === 'prioritize' && (useCasesList.length === 0 ? (
                   <EmptyState onAddFirst={handleOpenAddDialog} onImport={() => setImportDialogOpen(true)} />
                 ) : (
                   <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <details className="rounded-lg border p-4">
+                  <summary className="cursor-pointer text-sm font-medium">Scoring and data tools</summary>
+                <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <motion.div
                     key={scoringMethod}
                     initial={{ scale: 0.98 }}
@@ -1350,7 +1617,7 @@ function App() {
                       </TabsList>
                     </Tabs>
                   </motion.div>
-                  <div className="flex gap-2 w-full sm:w-auto">
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                     <Button 
                       onClick={handleOpenTableExport} 
                       variant="outline" 
@@ -1377,7 +1644,7 @@ function App() {
                       <ShieldCheck size={20} weight="bold" />
                       Re-assess
                     </Button>
-                    <Button onClick={handleOpenAddDialog} className="gap-2 flex-1 sm:flex-initial">
+                    <Button variant="outline" onClick={handleOpenAddDialog} className="gap-2 flex-1 sm:flex-initial">
                       <Plus size={20} weight="bold" />
                       Add Use Case
                     </Button>
@@ -1387,6 +1654,7 @@ function App() {
                     />
                   </div>
                 </div>
+                </details>
 
                 <TopRecommendations
                   topUseCases={topUseCases}
@@ -1541,36 +1809,6 @@ function App() {
                 )}
                 </AnimatePresence>
 
-                <Card className="border-2 bg-card">
-                  <CardHeader className="pb-3">
-                    <CardTitle>Portfolio/Matrix: Next step</CardTitle>
-                    <CardDescription>
-                      When you’re ready, proceed to Enterprise Discovery or conclude this assessment.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      className="flex-1"
-                      onClick={() => {
-                        handleStartEnterpriseDiscovery()
-                      }}
-                    >
-                      Proceed to Strategic Assessment
-                    </Button>
-                    <Button
-                      className="flex-1"
-                      variant="outline"
-                      onClick={() => {
-                        toast.success('Portfolio step concluded', {
-                          description: 'You can proceed to Strategic Assessment anytime from the launcher.',
-                        })
-                      }}
-                    >
-                      Conclude
-                    </Button>
-                  </CardContent>
-                </Card>
-
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <motion.h2 
@@ -1625,12 +1863,14 @@ function App() {
                   </div>
                 </div>
               </div>
-            )}
+            ))}
+                <WorkspaceContinue step={workspaceStep} onStepChange={handleWorkspaceStepChange} />
               </>
             )}
           </div>
 
-          <UseCaseDialog
+          <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 p-6 backdrop-blur-sm"><LazyFallback /></div>}>
+          {dialogOpen && <UseCaseDialog
             open={dialogOpen}
             onOpenChange={handleDialogOpenChange}
             onSave={handleSaveEdit}
@@ -1639,9 +1879,9 @@ function App() {
             sessionIndustry={selectedSession?.industry}
             complianceEnforcement={(selectedSession as any)?.complianceEnforcement || 'advisory'}
             customerStakeholders={selectedCustomer?.stakeholders}
-          />
+          />}
 
-          <TableExportView
+          {tableExportOpen && <TableExportView
             open={tableExportOpen}
             onOpenChange={setTableExportOpen}
             useCases={getRankedUseCases(useCasesList, scoringMethod)}
@@ -1649,17 +1889,17 @@ function App() {
             scoringMethod={scoringMethod}
             customerMetadata={customerMetadata || undefined}
             suggestedUseCases={selectedSession?.suggestedUseCases}
-          />
+          />}
 
-          <SessionManager
+          {sessionManagerOpen && <SessionManager
             open={sessionManagerOpen}
             onOpenChange={setSessionManagerOpen}
             onViewSession={handleViewSession}
             onCompareSessions={handleCompareSessions}
             onResumeEnterpriseSession={handleResumeEnterpriseDiscovery}
-          />
+          />}
 
-          <ImportUseCasesDialog
+          {importDialogOpen && <ImportUseCasesDialog
             open={importDialogOpen}
             onOpenChange={setImportDialogOpen}
             onImport={handleImportUseCases}
@@ -1667,9 +1907,9 @@ function App() {
             sessionLocation={selectedSession?.innovationHubLocation}
             sessionIndustry={selectedSession?.industry}
             complianceEnforcement={(selectedSession as any)?.complianceEnforcement || 'advisory'}
-          />
+          />}
 
-          {selectedSession && (
+          {selectedSession && execSummaryGeneratorOpen && (
             <ExecutiveSummaryGeneratorDialog
               open={execSummaryGeneratorOpen}
               onOpenChange={setExecSummaryGeneratorOpen}
@@ -1682,6 +1922,7 @@ function App() {
               }}
             />
           )}
+          </Suspense>
         </motion.div>
       )}
 

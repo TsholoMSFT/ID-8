@@ -71,4 +71,25 @@ describe('useDiscovery session identity', () => {
       expect.objectContaining({ id: session.id, name: 'Updated ABSA Discovery' }),
     ])
   })
+
+  it('keeps research persistence callbacks stable when session data changes', () => {
+    const { result } = renderHook(() => useDiscovery())
+    const add = result.current.addSession
+    const update = result.current.updateSession
+    act(() => add(session))
+    act(() => update(session.id, { companyResearchSummary: 'Saved evidence' }))
+    expect(result.current.addSession).toBe(add)
+    expect(result.current.updateSession).toBe(update)
+    expect(result.current.sessions[0].companyResearchSummary).toBe('Saved evidence')
+  })
+
+  it('applies concurrent research updates against the latest owning session', () => {
+    const { result } = renderHook(() => useDiscovery())
+    act(() => result.current.addSession(session))
+    act(() => {
+      result.current.updateSession(session.id, (current) => ({ companyResearchSummary: `${current.companyResearchSummary ?? ''}first` }))
+      result.current.updateSession(session.id, (current) => ({ companyResearchSummary: `${current.companyResearchSummary ?? ''},second` }))
+    })
+    expect(result.current.sessions[0].companyResearchSummary).toBe('first,second')
+  })
 })

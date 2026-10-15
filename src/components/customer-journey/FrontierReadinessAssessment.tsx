@@ -63,7 +63,7 @@ export function FrontierReadinessAssessment({ value, onChange }: FrontierReadine
             <h2 className="mt-1 text-3xl font-bold">{maturity.stage}</h2>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{maturity.description}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="gap-1.5 bg-background px-3 py-1.5">
               <CheckCircle size={14} /> {maturity.pillarsAtThreshold}/9 at implementation
             </Badge>

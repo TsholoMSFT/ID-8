@@ -1,5 +1,5 @@
 import { UseCase, ScoringMethod, CustomerMetadata, SuggestedUseCaseData } from '@/lib/types'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -79,7 +79,7 @@ export function TableExportView({
       description: `${financialSummary.useCasesWithCOI} use cases with COI, ${financialSummary.useCasesWithEV} with expected value` 
     }] : []),
     { label: 'Top Recommendations', description: `${topUseCases.length} highest-scoring use cases` },
-    { label: 'Scoring Methodology', description: scoringMethod === 'rice' ? 'RICE Framework explanation' : 'Impact/Feasibility Matrix explanation' },
+    { label: 'Scoring Methodology', description: scoringMethod === 'blended' ? 'Balanced ranking explanation' : scoringMethod === 'rice' ? 'RICE Framework explanation' : 'Impact/Feasibility Matrix explanation' },
     { label: 'All Use Cases', description: `Complete list of ${useCases.length} evaluated use cases` },
     { label: 'AI-Suggested Use Cases', description: suggestedUseCases?.length ? `${suggestedUseCases.length} AI-recommended opportunities` : 'None available' },
     { label: 'Regulatory Considerations', description: 'Applicable AI governance frameworks' },
@@ -88,7 +88,7 @@ export function TableExportView({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto sm:max-w-2xl">
         <div className="flex flex-col gap-6">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -97,11 +97,11 @@ export function TableExportView({
                 <FilePdf size={24} weight="duotone" className="text-primary" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Export Assessment Report</h2>
-                <p className="text-sm text-muted-foreground">Generate a comprehensive PDF report</p>
+                <DialogTitle className="text-lg font-semibold">Export Assessment Report</DialogTitle>
+                <DialogDescription className="text-sm text-muted-foreground">Review and download a PDF report</DialogDescription>
               </div>
             </div>
-            <Button onClick={() => onOpenChange(false)} variant="ghost" size="icon">
+            <Button onClick={() => onOpenChange(false)} variant="ghost" size="icon" aria-label="Close report preview">
               <X size={18} />
             </Button>
           </div>

@@ -2618,6 +2618,7 @@ export type BusinessFunction =
   | 'cross-functional'
 
 export type DiscoverySessionCreationSource =
+  | 'workspace'
   | 'discovery'
   | 'skip-to-use-cases'
   | 'notes-analysis'
