@@ -11,12 +11,31 @@ const credential = new AzureCliCredential();
 
 export async function armRequest(path: string, method = "GET", body?: unknown): Promise<unknown> {
   const token = await credential.getToken("https://management.azure.com/.default");
-  const response = await fetch(`https://management.azure.com${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${token.token}`, "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(30_000),
-  });
+  const readOnly = method === "GET" || method === "POST" && /\/list(AppSettings|AdminKeys)\?/.test(path);
+  let response: Response | undefined;
+  for (let attempt = 0; attempt < (readOnly ? 2 : 1); attempt++) {
+    try {
+      response = await fetch(`https://management.azure.com${path}`, {
+        method,
+        headers: { Authorization: `Bearer ${token.token}`, "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (error) {
+      if (!readOnly || attempt > 0) throw error;
+      console.warn("Azure management read failed before a response; retrying the read once. No inference or write is replayed.");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      continue;
+    }
+    if (readOnly && attempt === 0 && response.status >= 500) {
+      console.warn(`Azure management read returned HTTP ${response.status}; retrying the read once.`);
+      await response.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      continue;
+    }
+    break;
+  }
+  if (!response) throw new Error("Azure management request returned no response.");
   if (!response.ok) throw new Error(`Azure management request failed with HTTP ${response.status} (${method} ${path.split("?")[0]}).`);
   return response.status === 204 ? undefined : response.json();
 }

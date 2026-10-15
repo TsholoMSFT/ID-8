@@ -11,8 +11,12 @@ interface RequestScope {
 
 export const requestScope = new AsyncLocalStorage<RequestScope>();
 
+function apiRoute(request: HttpRequest): string {
+  return decodeURIComponent(new URL(request.url).pathname).replace(/^\/api\//i, "").replace(/\/+$/, "").toLowerCase();
+}
+
 export function isPublicRequest(request: HttpRequest): boolean {
-  const route = new URL(request.url).pathname.replace(/^\/api\//, "").replace(/\/$/, "");
+  const route = apiRoute(request);
   if (request.method === "OPTIONS") return true;
   if (request.method === "GET" && ["health", "rss-feeds", "filings-feeds", "regulatory-feeds"].includes(route)) return true;
   if (route === "ai-readiness" && request.method === "GET" && request.query.get("refresh") !== "true") return true;
@@ -67,17 +71,17 @@ export function guardHttpHandler(
       };
     }
     try {
-      const route = new URL(request.url).pathname;
+      const route = apiRoute(request);
       const length = Number(request.headers.get("content-length") || 0);
-      const maxBytes = route.endsWith("/ocr") ? 10 * 1024 * 1024 + 65536 : 256 * 1024;
+      const maxBytes = route === "ocr" ? 10 * 1024 * 1024 + 65536 : 256 * 1024;
       if (length > maxBytes) {
         return { status: 413, headers, jsonBody: { error: "Request body exceeds the size limit.", code: "INVALID_REQUEST", retryable: false, correlationId } };
       }
       await reserve(userId, {
         requests: 1,
-        images: route.endsWith("/image") ? 1 : 0,
-        ocrPages: route.endsWith("/ocr") ? 10 : 0,
-        agentRuns: route.endsWith("/agent-run") && request.method === "POST" ? 1 : 0,
+        images: route === "image" ? 1 : 0,
+        ocrPages: route === "ocr" ? 10 : 0,
+        agentRuns: route === "agent-run" && request.method === "POST" ? 1 : 0,
       });
     } catch (error) {
       const quotaError = error instanceof QuotaExceededError;

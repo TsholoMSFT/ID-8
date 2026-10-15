@@ -64,7 +64,7 @@ async function main(): Promise<void> {
   console.log(JSON.stringify({
     documents: index.documents.length, provider: "blob-hybrid", semanticRecallAtFive: checks.length / scenarios.length,
     checks, privateCacheRoundtrip: "passed", actualTableQuotaBoundary: "passed",
-    sourceDeleted: false,
+    sourceDeletionPerformedByVerifier: false,
   }, null, 2));
 }
 

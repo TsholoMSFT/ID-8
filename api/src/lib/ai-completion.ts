@@ -95,7 +95,7 @@ export async function completeAI(
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
   messages.push({ role: "user", content: prompt });
 
-  await reserveAIUsage({ tokens: Buffer.byteLength(prompt + (systemPrompt || ""), "utf8") + outputTokenLimit });
+  await reserveAIUsage({ tokens: Buffer.byteLength(prompt + (systemPrompt || ""), "utf8") + outputTokenLimit + 64 });
   const requestBody: Record<string, unknown> = { messages };
   if (GPT5_OR_O_SERIES_RE.test(config.deployment)) {
     requestBody.max_completion_tokens = outputTokenLimit;

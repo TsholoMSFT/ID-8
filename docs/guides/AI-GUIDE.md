@@ -73,7 +73,7 @@ For direct local Functions development only, set `KARABO_ALLOW_ANONYMOUS_LOCAL=t
 
 - Atomic Azure Table Storage transactions reserve both per-user and application-wide quotas before billable work. Storage failures fail closed.
 - Defaults: 200 requests/user/day, 2,000/application/day; 20/user/minute, 100/application/minute.
-- Conservative token reservations: 200,000/user/day and 2,000,000/application/day, counting input UTF-8 bytes plus the maximum output budget. Failed/uncertain requests retain their reservation; these are safety ceilings, not estimates of billed dollars.
+- Conservative token reservations: 200,000/user/day and 2,000,000/application/day, counting input UTF-8 bytes, a message-overhead allowance, and the maximum output budget. Failed/uncertain requests retain their reservation; these are safety ceilings, not estimates of billed dollars.
 - Images: one low-quality image/request, three/user/day and 15/application/day.
 - OCR: first ten pages/request; 50 reserved pages/user/day and 200/application/day. Longer scanned files must be split explicitly.
 - Agent runs: five/user/day and 20/application/day; provider run caps are 8,000 prompt and 2,000 completion tokens.
@@ -108,6 +108,12 @@ After `az login`, `npm --prefix api run knowledge:verify` checks real Blob/vecto
 `ai-response-cache/` expires after one day. Knowledge indexes, migration backups, questionnaires and quota rows are not subject to the 45-day feed-snapshot expiration rule. Quota counters use fixed global/per-user rows rather than creating a new row every minute.
 
 The run-cost estimator is for hypothetical customer workloads, not KARABO's Azure bill. It no longer invents $25/$75 monthly hosting fees. Users can compare Blob hybrid retrieval, and fixed Search capacity is counted once only when they explicitly assign workloads to the same platform group. Old saved estimates remain unchanged until re-saved.
+
+### October 2026 rollout
+
+The 56-document Search corpus was backed up, migrated, and checked against real embeddings. POPIA, RAG knowledge retrieval, and document extraction scenarios each returned the expected reference at rank 1. Dedicated `id8-search`, the unused Standard `karabo` site, and the duplicate standalone Function/Flex plan were then removed after the managed deployment and verification passed.
+
+The pre-change 30-day Cost Management baseline was **R4,317.52 for the scoped KARABO resources**, of which **R4,301.34 (99.63%) was dedicated Search**. Removing that service eliminates its ongoing fixed charge; this is not a guarantee that future total spend will be zero. Shared AI-account costs and future model/storage/traffic usage are separate. Both existing storage accounts, knowledge backups, and monitoring history were retained.
 
 ## Foundry Local Development Setup
 

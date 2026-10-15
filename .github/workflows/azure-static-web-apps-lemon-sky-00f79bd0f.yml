@@ -41,6 +41,7 @@ jobs:
           npm run typecheck
           npm test
           npm --prefix api ci
+          npm --prefix api run typecheck:scripts
           npm --prefix api test
           npm --prefix api run build
           npm --prefix api prune --omit=dev --ignore-scripts --no-audit

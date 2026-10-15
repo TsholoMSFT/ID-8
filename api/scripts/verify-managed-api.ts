@@ -151,5 +151,6 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : "Managed API verification failed.");
+  if (error instanceof Error && "cause" in error && error.cause instanceof Error) console.error(error.cause.message);
   process.exitCode = 1;
 });

@@ -57,3 +57,13 @@ test("does not misreport handler failures as quota storage failures after author
   const handler = guardHttpHandler(async () => { throw new Error("Handler failure"); }, async () => undefined);
   await assert.rejects(Promise.resolve(handler(request("chat", "POST", "aad"), new InvocationContext())), /Handler failure/);
 });
+
+test("charges metered routes consistently for case, trailing slash and percent-encoded spellings", async () => {
+  for (const route of ["image", "IMAGE/", "%69mage/"]) {
+    let imageCharge = 0;
+    const handler = guardHttpHandler(async () => ({ status: 200 }), async (_userId, charge) => { imageCharge = charge.images ?? 0; });
+    const response = await handler(request(route, "POST", "aad"), new InvocationContext());
+    assert.equal(response?.status, 200);
+    assert.equal(imageCharge, 1, `Missing image reservation for ${route}`);
+  }
+});
