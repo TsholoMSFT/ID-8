@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "..",
     "noEmit": true
   },
   "include": [
@@ -12,6 +12,7 @@
     "scripts/verify-managed-api.ts",
     "scripts/id8-migration-utils.ts",
     "scripts/id8-migration.test.ts",
-    "scripts/migrate-id8-resources.ts"
+    "scripts/migrate-id8-resources.ts",
+    "scripts/verify-research-extraction.ts"
   ]
 }

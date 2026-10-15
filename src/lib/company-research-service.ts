@@ -10,6 +10,7 @@ import { callAIForTask } from './openai-service'
 import { parseJsonLenient } from './lenient-json'
 import { extractTextFromAttachments } from './attachment-text'
 import type { EntityType } from './types'
+import { buildCompanyInsightPrompt, researchItemsToText, type ResearchFeedItem } from './company-research-prompt'
 
 // ============================================================================
 // TYPES
@@ -46,12 +47,7 @@ export interface CompanySource {
   addedAt: string
 }
 
-export interface RSSFeedItem {
-  title: string
-  description: string
-  link: string
-  pubDate: string
-}
+export type RSSFeedItem = ResearchFeedItem
 
 export interface FetchRSSFromBlobStorageResult {
   items: RSSFeedItem[]
@@ -110,16 +106,6 @@ export async function extractInsightsFromText(
     return []
   }
 
-  const clipForPrompt = (text: string, maxChars: number): string => {
-    const trimmed = text.trim()
-    if (trimmed.length <= maxChars) return trimmed
-
-    // Keep both the start and end to preserve context (especially for long RSS dumps).
-    const head = trimmed.slice(0, Math.floor(maxChars * 0.7))
-    const tail = trimmed.slice(-Math.floor(maxChars * 0.3))
-    return `${head}\n\n[...truncated...]\n\n${tail}`
-  }
-
   const getInsightsArray = (parsed: any): any[] | undefined => {
     if (Array.isArray(parsed)) return parsed
     if (!parsed || typeof parsed !== 'object') return undefined
@@ -140,45 +126,7 @@ export async function extractInsightsFromText(
 
   const entityGuidance = buildEntityResearchGuidance(entityType, companyName)
 
-  const prompt = `You are a business analyst preparing for an AI discovery session with ${companyName}.${entityGuidance}
-
-CONTENT TO ANALYZE:
-"""
-${clipForPrompt(content, 12000)}
-"""
-
-SOURCE: ${sourceTitle}
-
-TASK: Extract key business insights that could inform AI/technology opportunities.
-
-For each insight, identify:
-1. Category (strategy, financial, technology, market, operations, culture, news)
-2. A concise title (5-10 words)
-3. A brief summary (2-3 sentences)
-4. How this relates to AI/automation opportunities
-5. 1-3 potential use cases this insight suggests
-6. Confidence level in the insight (high/medium/low)
-
-Return a JSON object:
-{
-  "insights": [
-    {
-      "category": "strategy|financial|technology|market|operations|culture|news",
-      "title": "Brief insight title",
-      "summary": "2-3 sentence summary",
-      "relevanceToAI": "How this relates to AI opportunities",
-      "potentialUseCases": ["Use case 1", "Use case 2"],
-      "confidence": "high|medium|low"
-    }
-  ]
-}
-
-Extraction rules:
-- Extract 3-8 insights when there is sufficient signal (e.g., multiple headlines, clear themes, initiatives, risks).
-- Do NOT return an empty insights list unless the content genuinely contains no business-relevant information.
-- If the content is mostly headlines, infer themes and summarize them as "news" or "strategy" insights.
-
-Return valid JSON only.`
+  const prompt = buildCompanyInsightPrompt(content, companyName, sourceTitle, entityGuidance)
 
   try {
     const raw = await callAIForTask('extraction', prompt, {
@@ -191,7 +139,7 @@ Return valid JSON only.`
     const insightsRaw = getInsightsArray(parsed)
 
     if (!insightsRaw) {
-      return []
+      throw new Error('The AI response did not contain an insights list.')
     }
 
     return insightsRaw.map((insight: any) => {
@@ -573,10 +521,7 @@ function stripHtml(html: string): string {
  * Convert RSS items to extractable text for insight generation
  */
 export function rssItemsToText(items: RSSFeedItem[], maxItems: number = 10): string {
-  return items
-    .slice(0, maxItems)
-    .map(item => `HEADLINE: ${item.title}\nDATE: ${item.pubDate}\nSUMMARY: ${item.description}\n`)
-    .join('\n---\n')
+  return researchItemsToText(items, maxItems)
 }
 
 // ============================================================================

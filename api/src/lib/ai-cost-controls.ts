@@ -1,3 +1,5 @@
+import type { AIModel } from "./ai-provider";
+
 export type AITask =
   | "extraction"
   | "use-case-generation"
@@ -18,7 +20,7 @@ export type AITask =
   | "general";
 
 const OUTPUT_TOKEN_LIMITS: Record<AITask, number> = {
-  extraction: 2000,
+  extraction: 4000,
   "use-case-generation": 6000,
   "solution-mapping": 5000,
   formatting: 1000,
@@ -47,6 +49,10 @@ export function getOutputTokenLimit(task: unknown): number {
 
 export const MAX_AI_INPUT_BYTES = 48_000;
 
+export function getReasoningEffort(task: AITask, supportsMinimalReasoning: boolean): "minimal" | undefined {
+  return supportsMinimalReasoning && (task === "extraction" || task === "formatting") ? "minimal" : undefined;
+}
+
 export function selectCompletionModel(model: AIModel, expectJson: boolean, allowPremium: boolean): AIModel {
   if (model === "gpt-4o" && !allowPremium) return "gpt-4o-mini";
   // The deployed Phi model does not complete strict JSON-mode requests reliably.
@@ -61,4 +67,3 @@ export function validateAIInput(prompt: unknown, systemPrompt?: unknown): assert
     throw new Error(`Prompt exceeds the combined ${MAX_AI_INPUT_BYTES}-byte input limit.`);
   }
 }
-import type { AIModel } from "./ai-provider";

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { getOutputTokenLimit, selectCompletionModel, validateAIInput, type AITask } from "./ai-cost-controls";
+import { getOutputTokenLimit, getReasoningEffort, selectCompletionModel, validateAIInput, type AITask } from "./ai-cost-controls";
 import {
   AIProviderError,
   classifyAIResponseError,
@@ -77,7 +77,8 @@ export async function completeAI(
   const selectedModel = selectCompletionModel(model, expectJson, process.env.AI_ALLOW_PREMIUM === "true");
   const config = resolveAIProviderConfig(selectedModel, cloudEnvironment);
   const outputTokenLimit = getOutputTokenLimit(task);
-  const cacheKey = JSON.stringify({ endpoint: config.endpoint, deployment: config.deployment, version: config.apiVersion, task, prompt, systemPrompt, expectJson, outputTokenLimit });
+  const reasoningEffort = getReasoningEffort(task, config.supportsMinimalReasoning);
+  const cacheKey = JSON.stringify({ responsePolicyVersion: 2, endpoint: config.endpoint, deployment: config.deployment, version: config.apiVersion, task, prompt, systemPrompt, expectJson, outputTokenLimit, reasoningEffort });
   return cachedCompletion(cacheKey, async () => {
   const authHeaders = await getAoaiAuthHeaders(config.apiKey, config.authMode);
   if (!authHeaders) {
@@ -97,15 +98,16 @@ export async function completeAI(
 
   await reserveAIUsage({ tokens: Buffer.byteLength(prompt + (systemPrompt || ""), "utf8") + outputTokenLimit + 64 });
   const requestBody: Record<string, unknown> = { messages };
-  if (GPT5_OR_O_SERIES_RE.test(config.deployment)) {
+  if (GPT5_OR_O_SERIES_RE.test(config.deployment) || config.supportsMinimalReasoning) {
     requestBody.max_completion_tokens = outputTokenLimit;
   } else {
     requestBody.max_tokens = outputTokenLimit;
     requestBody.temperature = 0.7;
   }
+  if (reasoningEffort) requestBody.reasoning_effort = reasoningEffort;
   if (expectJson) requestBody.response_format = { type: "json_object" };
 
-  logger?.log(`AI correlationId=${correlationId} auth=${config.authMode} model=${model} deployment=${config.deployment} cloud=${config.cloud} task=${task} maxOutputTokens=${outputTokenLimit}`);
+  logger?.log(`AI correlationId=${correlationId} auth=${config.authMode} model=${model} deployment=${config.deployment} cloud=${config.cloud} task=${task} maxOutputTokens=${outputTokenLimit} reasoningEffort=${reasoningEffort || "provider-default"}`);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), Math.min(request.timeoutMs ?? PROVIDER_TIMEOUT_MS, PROVIDER_TIMEOUT_MS));
@@ -136,15 +138,24 @@ export async function completeAI(
 
   const data = await response.json() as {
     model?: string;
-    choices?: Array<{ message?: { content?: string } }>;
+    choices?: Array<{ finish_reason?: string | null; message?: { content?: string } }>;
     usage?: unknown;
   };
+  const finishReason = data.choices?.[0]?.finish_reason;
+  logger?.log(`AI usage correlationId=${correlationId} deployment=${config.deployment} finishReason=${finishReason || "unknown"} usage=${JSON.stringify(data.usage)}`);
+  if (finishReason === "length") {
+    throw new AIProviderError(
+      "OUTPUT_TOKEN_LIMIT",
+      "AI reached its response token limit before completing the analysis. Try a shorter source or a smaller batch.",
+      false,
+      502,
+    );
+  }
   const content = data.choices?.[0]?.message?.content?.trim();
   if (!content) {
     throw new AIProviderError("INVALID_MODEL_OUTPUT", "AI provider returned no content.", false, 502);
   }
 
-  logger?.log(`AI usage correlationId=${correlationId} deployment=${config.deployment} usage=${JSON.stringify(data.usage || {})}`);
   return {
     content,
     model: data.model || config.deployment,

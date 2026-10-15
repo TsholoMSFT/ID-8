@@ -54,6 +54,20 @@ test("classifies permanent and transient provider failures", () => {
   assert.equal(classifyAIResponseError(400, "Bad request").retryable, false);
 });
 
+test("declares minimal-reasoning support only for an explicitly resolved nano deployment", () => {
+  const env = {
+    AZURE_OPENAI_AUTH_TYPE: "key",
+    AZURE_OPENAI_ENDPOINT: "https://example.openai.azure.com",
+    AZURE_OPENAI_API_KEY: "test-key",
+    AZURE_OPENAI_DEPLOYMENT_GPT4O_MINI: "gpt-4o-mini",
+  };
+  assert.equal(resolveAIProviderConfig("gpt-5-nano", "public", env).supportsMinimalReasoning, false);
+  assert.equal(resolveAIProviderConfig("gpt-5-nano", "public", {
+    ...env, AZURE_OPENAI_DEPLOYMENT_NANO: "structured-nano",
+  }).supportsMinimalReasoning, true);
+  assert.equal(resolveAIProviderConfig("gpt-4o-mini", "public", env).supportsMinimalReasoning, false);
+});
+
 test("emits a stable safe error body", () => {
   const body = toAIErrorBody(
     new AIProviderError("AI_AUTH_FAILED", "The selected identity is not authorized.", false, 403),

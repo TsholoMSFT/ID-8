@@ -14,6 +14,7 @@
     "knowledge:migrate": "tsx scripts/migrate-knowledge.ts",
     "knowledge:verify": "tsx scripts/verify-knowledge.ts",
     "verify:managed": "tsx scripts/verify-managed-api.ts",
+    "verify:research": "tsx scripts/verify-research-extraction.ts",
     "knowledge:seed": "tsx scripts/seed-search-from-kv.ts",
     "configure:managed": "tsx scripts/configure-managed-api.ts"
   },

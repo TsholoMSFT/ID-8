@@ -79,6 +79,8 @@ For direct local Functions development only, set `ID8_ALLOW_ANONYMOUS_LOCAL=true
 - Agent runs: five/user/day and 20/application/day; provider run caps are 8,000 prompt and 2,000 completion tokens.
 - Combined chat/system input is capped at 48,000 UTF-8 bytes. Embedding batches allow 1-16 inputs and at most 32,000 combined bytes.
 - Output ceilings are task-specific; executive content defaults to the mini route. `AI_ALLOW_PREMIUM=true` is required to authorize the premium alias.
+- Structured nano extraction uses `reasoning_effort: minimal` and a 4,000-token completion ceiling. Formatting uses the same supported nano reasoning profile within its existing smaller ceiling. These controls are not sent to fallback mini deployments or other model families.
+- Completion limits include hidden reasoning as well as visible text. A `finish_reason` of `length` produces an explicit, non-retryable `OUTPUT_TOKEN_LIMIT` error, even when partial text exists; incomplete JSON is never treated as a successful completion or cached. Provider finish reason and usage are logged without prompts or keys.
 - Successful completions are cached privately per signed-in user for 15 minutes in Blob Storage. Concurrent requests share work; cross-instance leases prevent duplicate paid requests. Cached responses report zero new tokens.
 - Application Insights samples successful traffic and suppresses routine liveness/configuration results. Retained monitoring history is not deleted.
 
@@ -104,6 +106,10 @@ When embeddings are unavailable, the API logs the reason and explicitly reports 
 The migration script exports every ID-8-owned source index to non-expiring `knowledge-backups/` blobs, verifies document IDs/content/metadata, regenerates non-retrievable source vectors once, and verifies the destination checksum. It does not delete Search. Preserve the backup and validate authenticated retrieval before deleting the source service.
 
 After `az login`, `npm --prefix api run knowledge:verify` checks real Blob/vector retrieval, cache round trips and durable quota boundaries. `npm --prefix api run verify:managed` invokes the protected handlers locally with test platform identities against existing Azure dependencies and verifies the deployed gateway's anonymous rejections and public questionnaire round trip. It creates and deletes only synthetic questionnaire/submission and verification-user quota rows; it never sends fake identity headers to the live gateway. This is an operator-authorized integration check, not a completed end-to-end Entra browser login.
+
+`npm --prefix api run verify:research` is an explicit, metered company-research regression. It loads the current ABSA filings, uses the same 12-item formatting/prompt as the UI, and requires 3-8 complete insights with populated summaries, AI relevance, confidence and 1-3 use cases. It records finish/token diagnostics and validates that only one inference occurred; daily quotas still apply and only its synthetic user quota row is deleted afterward.
+
+The October 2026 ABSA blank-result regression was reproduced with 2,000 completion tokens entirely consumed by reasoning and zero visible output. The bounded minimal-reasoning profile returned six complete insights in one call instead. Routine CI uses deterministic provider fixtures; it does not run paid research regressions automatically.
 
 `ai-response-cache/` expires after one day. Knowledge indexes, migration backups, questionnaires and quota rows are not subject to the 45-day feed-snapshot expiration rule. Quota counters use fixed global/per-user rows rather than creating a new row every minute.
 

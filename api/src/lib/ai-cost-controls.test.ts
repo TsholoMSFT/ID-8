@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getOutputTokenLimit, MAX_AI_INPUT_BYTES, selectCompletionModel, validateAIInput } from "./ai-cost-controls";
+import { getOutputTokenLimit, getReasoningEffort, MAX_AI_INPUT_BYTES, selectCompletionModel, validateAIInput } from "./ai-cost-controls";
 
 test("uses lower output budgets for compact tasks", () => {
   assert.equal(getOutputTokenLimit("formatting"), 1000);
@@ -9,10 +9,18 @@ test("uses lower output budgets for compact tasks", () => {
 });
 
 test("allows larger bounded outputs for complex tasks", () => {
+  assert.equal(getOutputTokenLimit("extraction"), 4000);
   assert.equal(getOutputTokenLimit("architecture"), 3500);
   assert.equal(getOutputTokenLimit("executive"), 2500);
   assert.equal(getOutputTokenLimit("use-case-generation"), 6000);
   assert.equal(getOutputTokenLimit("solution-mapping"), 5000);
+});
+
+test("reduces reasoning only for supported bounded structured tasks", () => {
+  assert.equal(getReasoningEffort("extraction", true), "minimal");
+  assert.equal(getReasoningEffort("formatting", true), "minimal");
+  assert.equal(getReasoningEffort("analysis", true), undefined);
+  assert.equal(getReasoningEffort("extraction", false), undefined);
 });
 
 test("falls back to the general budget for missing or unknown tasks", () => {

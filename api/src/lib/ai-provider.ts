@@ -22,6 +22,7 @@ export type AIErrorCode =
   | "RATE_LIMITED"
   | "PROVIDER_TIMEOUT"
   | "INVALID_MODEL_OUTPUT"
+  | "OUTPUT_TOKEN_LIMIT"
   | "PROVIDER_ERROR";
 
 export interface AIErrorBody {
@@ -40,6 +41,7 @@ export interface AIProviderConfig {
   cloud: AICloudEnvironment;
   apiVersion: string;
   isAIHub: boolean;
+  supportsMinimalReasoning: boolean;
 }
 
 const API_VERSIONS: Record<AICloudEnvironment, string> = {
@@ -172,6 +174,7 @@ export function resolveAIProviderConfig(
     cloud: useAIHub ? "public" : cloud,
     apiVersion: API_VERSIONS[useAIHub ? "public" : cloud],
     isAIHub: useAIHub,
+    supportsMinimalReasoning: model === "gpt-5-nano" && (useAIHub || Boolean(env.AZURE_OPENAI_DEPLOYMENT_NANO?.trim())),
   };
 }
 

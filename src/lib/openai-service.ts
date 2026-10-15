@@ -241,6 +241,7 @@ export type AIErrorCode =
   | 'RATE_LIMITED'
   | 'PROVIDER_TIMEOUT'
   | 'INVALID_MODEL_OUTPUT'
+  | 'OUTPUT_TOKEN_LIMIT'
   | 'PROVIDER_ERROR'
 
 export class AIServiceError extends Error {
