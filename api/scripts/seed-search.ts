@@ -7,7 +7,7 @@
  *
  * Required env:
  *   AZURE_STORAGE_CONNECTION_STRING
- *   AZURE_OPENAI_ENDPOINT        e.g. https://id8-ai-hub.openai.azure.com/
+ *   AZURE_OPENAI_ENDPOINT        existing server-side model endpoint
  *   AZURE_OPENAI_API_KEY
  *   AZURE_OPENAI_EMBEDDING_DEPLOYMENT  defaults to text-embedding-3-small
  */

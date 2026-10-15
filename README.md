@@ -205,7 +205,9 @@ npm run build
 swa deploy id8 --api-language node --api-version 22 --env production
 ```
 
-The [managed infrastructure template](./infra/main.bicep) describes only the Free site and references existing storage. After `az login`, `npm --prefix api run configure:managed` merges cost-control settings into the existing site without displaying keys; `npm --prefix api run knowledge:migrate` backs up and migrates the existing Search corpus. Both scripts target the configured existing subscription/resource group and require explicit operator authorization. For a new corpus, use `knowledge:seed` (it refuses to replace an index without `--replace`).
+The [managed infrastructure template](./infra/main.bicep) describes only the Free site and references existing storage. After `az login`, `npm --prefix api run configure:managed` merges cost-control settings into `id8-app` without displaying keys, and `npm --prefix api run knowledge:verify` checks the private knowledge index and quota/cache boundaries. For a new corpus, use `knowledge:seed` (it refuses to replace an index without `--replace`).
+
+The ID-8 technical migration is complete: 56 knowledge documents and the existing quota counters were verified, the renamed feed workflows succeeded, and the previous site/workflows were retired with owner approval. The previous URL no longer works. Server data, backups and monitoring history were retained. Ordinary releases deploy only to `id8-app`; the one-time migration commands are not part of normal deployment.
 
 **Never place service keys in `VITE_*` variables.** Managed Functions do not support managed identity or Key Vault references; server-side model and storage keys must remain in the Static Web App's encrypted API settings. See [AI-GUIDE.md](./docs/guides/AI-GUIDE.md).
 

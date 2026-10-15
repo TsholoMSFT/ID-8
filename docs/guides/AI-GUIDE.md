@@ -121,7 +121,9 @@ Active app-owned identifiers use `id8` prefixes: `id8quotas`, `knowledge-index/i
 
 Operator sequence after Azure preparation/validation: provision `id8-app`, run `npm --prefix api run id8:migrate -- prepare`, publish the new deployment and legacy-address handoff, then run `npm --prefix api run id8:migrate -- activate`. The new API stays paused until old metered access is blocked, quota counters and index checksums match, and feed schedules are switched without duplication. API/model keys are transferred only between encrypted server settings and are never committed or logged.
 
-The old Free address displays ID-8 and preserves questionnaire paths when handing visitors over to the new URL. Historical resource names and a small number of explicitly labelled compatibility aliases remain only for archives, rollback, or existing local tooling. The previous completed data-schema marker is recognized so the branding change cannot replay older destructive schema cleanup.
+During cutover, the old Free address displayed ID-8 and handed visitors over while preserving questionnaire paths. After verification, the owner explicitly approved deleting that old site and both disabled feed workflows. The former URL no longer works: use [the canonical ID-8 site](https://red-field-069bdce0f.5.azurestaticapps.net/) and its questionnaire URLs.
+
+The one-time cutover is complete; do not rerun it as part of ordinary releases. Historical resource names and a small number of explicitly labelled compatibility aliases remain only for archives, rollback, or existing local tooling. The previous completed data-schema marker is recognized so the branding change cannot replay older destructive schema cleanup.
 
 The pre-change 30-day Cost Management baseline was **R4,317.52 for the scoped ID-8 resources**, of which **R4,301.34 (99.63%) was dedicated Search**. Removing that service eliminates its ongoing fixed charge; this is not a guarantee that future total spend will be zero. Shared AI-account costs and future model/storage/traffic usage are separate. Both existing storage accounts, knowledge backups, and monitoring history were retained.
 
